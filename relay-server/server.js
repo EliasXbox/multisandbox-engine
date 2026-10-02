@@ -2,9 +2,9 @@ const http = require('http');
 const WebSocket = require('ws');
 
 const BLOCK_MAP = {
-    "conveyor": "REDSTONE_WIRE",
-    "titanium-conveyor": "POWERED_RAIL",
-    "armored-conveyor": "RAIL",
+    "conveyor": "HOPPER",
+    "titanium-conveyor": "HOPPER",
+    "armored-conveyor": "HOPPER",
     "router": "HOPPER",
     "junction": "REPEATER",
     "duo": "DISPENSER",
