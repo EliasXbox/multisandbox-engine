@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+}
+
+dependencies {
+    // Usando a tag de release do Mindustry v146 diretamente
+    compileOnly 'com.github.Anuken.Mindustry:core:v146'
+    compileOnly 'com.github.Anuken.Arc:arc-core:v146'
+    
+    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+    implementation 'org.json:json:20231013'
+}
+
+jar {
+    archiveFileName = 'multisandboxengine-mindustry.jar'
+    
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    from processResources
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

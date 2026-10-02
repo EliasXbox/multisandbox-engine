@@ -1,0 +1,167 @@
+PROJETO CROSSPLAY SUPREMO: MULTI-SANDBOX ENGINE (MSE)
+VISÃO GERAL DO PROJETO
+
+Criar uma ponte de comunicacao em tempo real (Full-Duplex) entre jogos Sandbox.
+O Minecraft funciona como o motor de renderizacao 3D e mundo mestre.
+Cada jogador joga em seu proprio jogo, compartilhando o mesmo mapa, posicoes e economia.
+
+ARQUITETURA DO SISTEMA
+
+[Mindustry]    ---(Java Socket)---
+
+[Terraria]     ---(C# Socket)------
+
+[Stardew V.]   ---(C# Socket)-------+--> [SERVIDOR RELAY] --> [MINECRAFT]
+[Don't Starve] ---(Lua Socket)-----/     (Node.js / Python)   (Mundo Mestre)
+[Roblox]       ---(HTTP Lua)------/
+
+SERVIDOR RELAY: Servidor central em Node.js ou Python (porta 8080). Recebe os pacotes JSON, converte as coordenadas e repassa as acoes.
+
+PROTOCOLO: WebSockets e pacotes leves em JSON enviados a cada alteracao de bloco ou movimento.
+
+REGRAS DE CONVERSÃO E DESIGN POR JOGO
+
+MINDUSTRY (2D Visao Superior -> 3D)
+
+Coordenadas: X_MC = X_Mind | Z_MC = Y_Mind | Y_MC = 64 (Altura fixa).
+
+Multi-Tile (2x2, 3x3, 4x4): Define a coordenada de origem do "Bloco Pai". O servidor preenche a area no Minecraft com blocos filhos/barreiras invisiveis vinculadas.
+
+TERRARIA (Regra das 5 Camadas de Profundidade)
+
+Transforma o 2D lateral em uma fatia 3D no Minecraft.
+
+Escala: 1 Bloco de Terraria = 4x4x1 no Minecraft.
+
+Camada Z=1 e Z=2: Paredes de fundo do Terraria (sem colisao, luz reduzida).
+
+Camada Z=3: Pista principal onde o jogador caminha e interage.
+
+Camada Z=4 e Z=5: Blocos solidos com colisao ativada.
+
+Jogadores fora da faixa de Z=1 a Z=5 sao renderizados como hologramas/fantasmas na Z=3.
+
+STARDEW VALLEY
+
+Mapa dividido em ilhas/dimensoes separadas no Minecraft para cada cenario (Fazenda, Vila, Mina).
+
+DON'T STARVE
+
+Arredondamento continuo de vetores de posicao (X, Y) para a celula de grid mais proxima no Minecraft.
+
+GAMEPLAY E FÍSICA
+
+Protecao de Terreno: Blocos de chao (pedra, terra, areia) sao inquebraveis no Minecraft.
+
+Nodos Infinitos: Mineracao gera o item no inventario sem destruir o bloco, permitindo que brocas do Mindustry continuem extraindo.
+
+Entidades Sincronizadas:
+
+O Steve aparece no Mindustry como uma unidade terrestre top-down.
+
+Inimigos e naves do Mindustry surgem no Minecraft como entidades 3D flutuantes.
+
+ROADMAP DO POOL DE ITENS E CRAFTING
+
+FASE 1: Pool Isolado por Namespace (Estabilidade)
+
+Cada item mantem a ID do jogo de origem (ex: minecraft:copper_ingot, mindustry:copper).
+
+Texturas originais de cada jogo.
+
+Mantem receitas originais sem alteracao.
+
+FASE 2: Pool Universal e Crafting Hibrido (Integracao Total)
+
+Item Unificado: crossnet:copper (adota o estilo grafico de onde e exibido).
+
+Receitas Hibridas:
+
+Picareta de Liga de Silicio = Ferro (Minecraft) + Silicio (Mindustry).
+
+Broca de Oricalco = Oricalco (Terraria) + Titanio (Mindustry).
+
+Regador de Diamante = Diamante (Minecraft) + Regador (Stardew Valley).
+
+Sistema de Fallback: Uso de itens genericos de seguranca caso algum ID nao seja reconhecido, evitando crashes.
+
+
+
+    CODIGO BASE DO SERVIDOR RELAY (Node.js)
+
+
+
+const { WebSocketServer } = require('ws');
+const PORT = 8080;
+const wss = new WebSocketServer({ port: PORT });
+
+console.log('[Relay Server] Rodando na porta ' + PORT);
+
+const clients = {
+MINECRAFT: null,
+MINDUSTRY: null,
+TERRARIA: null,
+STARDEW: null,
+DONT_STARVE: null
+};
+
+wss.on('connection', (ws) => {
+let currentGame = null;
+
+ws.on('message', (message) => {
+try {
+const data = JSON.parse(message);
+
+  if (data.type === 'CONNECT') {
+    currentGame = data.game;
+    clients[currentGame] = ws;
+    console.log('[+] Jogo conectado: ' + currentGame);
+    return;
+  }
+
+  handleIncomingPacket(data);
+} catch (err) {
+  console.error('[-] Erro:', err.message);
+}
+});
+
+ws.on('close', () => {
+if (currentGame) {
+console.log('[-] Jogo desconectado: ' + currentGame);
+clients[currentGame] = null;
+}
+});
+});
+
+function handleIncomingPacket(packet) {
+if (packet.type === 'PLACE_BLOCK') {
+const converted = translateCoordinates(packet);
+broadcastTo('MINECRAFT', {
+type: 'MC_SET_BLOCK',
+x: converted.x,
+y: converted.y,
+z: converted.z,
+block_id: converted.block_id,
+source_game: packet.source_game
+});
+}
+}
+
+function translateCoordinates(packet) {
+if (packet.source_game === 'MINDUSTRY') {
+return { x: packet.x, y: 64, z: packet.y, block_id: packet.block_id };
+}
+if (packet.source_game === 'TERRARIA') {
+const scale = 4;
+const targetZ = packet.is_wall ? 1 : 3;
+return { x: packet.x * scale, y: packet.y * scale, z: targetZ, block_id: packet.block_id };
+}
+return { x: packet.x, y: packet.y, z: packet.z || 64, block_id: packet.block_id };
+}
+
+function broadcastTo(targetGame, data) {
+const targetClient = clients[targetGame];
+if (targetClient && targetClient.readyState === 1) {
+targetClient.send(JSON.stringify(data));
+}
+}

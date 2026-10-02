@@ -1,0 +1,23 @@
+{
+  "name": "mse-relay-server",
+  "version": "1.0.0",
+  "description": "Servidor central de roteamento do Multi-Sandbox Engine (MSE)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "crossplay",
+    "minecraft",
+    "mindustry",
+    "terraria",
+    "websocket",
+    "mse"
+  ],
+  "author": "EliasGX",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

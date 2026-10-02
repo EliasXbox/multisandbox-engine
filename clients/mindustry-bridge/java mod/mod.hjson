@@ -1,0 +1,8 @@
+name: "multisandboxengine-mindustry"
+displayName: "Multi-Sandbox Engine (MSE)"
+author: "EliasGX"
+description: "Ponte de comunicação e sincronização em tempo real para o ecossistema Multi-Sandbox Engine."
+version: "1.0.0"
+minGameVersion: "140"
+main: "com.crossplay.mindustry.MindustryBridge"
+hidden: false
