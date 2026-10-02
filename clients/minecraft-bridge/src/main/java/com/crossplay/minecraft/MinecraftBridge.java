@@ -2,8 +2,8 @@ package com.crossplay.minecraft;
 
 import com.crossplay.network.RelayClient;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -13,7 +13,6 @@ import org.json.JSONObject;
 import java.net.URI;
 
 public class MinecraftBridge extends JavaPlugin implements Listener {
-
     private RelayClient relayClient;
 
     @Override
@@ -21,41 +20,72 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
 
         try {
-            // Conecta ao Servidor Relay em Node.js
             URI serverUri = new URI("ws://localhost:8080");
             relayClient = new RelayClient(serverUri, "MINECRAFT", this::handleIncomingPacket);
             relayClient.connect();
         } catch (Exception e) {
-            getLogger().severe("Falha ao iniciar cliente Relay: " + e.getMessage());
+            getLogger().severe("[MSE-MINECRAFT] Failed to start Relay client: " + e.getMessage());
         }
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
+        if (relayClient == null) return;
+
         Location loc = event.getBlock().getLocation();
         String blockId = event.getBlock().getType().name().toLowerCase();
+        getLogger().info("[MSE-MINECRAFT] PLACE_BLOCK local " + blockId + " @ " +
+                loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ());
 
-        // Envia o bloco colocado no MC para o Relay
-        relayClient.sendBlockPlace(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), blockId, false);
+        relayClient.sendBlockPlace(
+                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), blockId, false);
     }
 
     private void handleIncomingPacket(JSONObject packet) {
-        String type = packet.getString("type");
+        String type = packet.optString("type", "UNKNOWN");
+        getLogger().info("[MSE-MINECRAFT] RX type=" + type);
 
-        if ("MC_SET_BLOCK".equals(type)) {
-            int x = packet.getInt("x");
-            int y = packet.getInt("y");
-            int z = packet.getInt("z");
-            String blockId = packet.getString("block_id");
-
-            // Executa na Thread principal do Minecraft para colocar o bloco no mundo
-            Bukkit.getScheduler().runTask(this, () -> {
-                Location loc = new Location(Bukkit.getWorlds().get(0), x, y, z);
-                Material mat = Material.matchMaterial(blockId);
-                if (mat == null) mat = Material.STONE; // Fallback de segurança
-
-                loc.getBlock().setType(mat);
-            });
+        if ("CONNECTED".equals(type)) {
+            getLogger().info("[MSE-MINECRAFT] Relay handshake confirmed.");
+            return;
         }
+
+        if ("CHAT_MESSAGE".equals(type)) {
+            String game = packet.optString("game", "UNKNOWN");
+            String player = packet.optString("player", "Unknown");
+            String message = packet.optString("message", "");
+            Bukkit.getScheduler().runTask(this, () ->
+                    Bukkit.broadcastMessage("[MSE][" + game + "] <" + player + "> " + message));
+            return;
+        }
+
+        if (!"MC_SET_BLOCK".equals(type)) {
+            getLogger().info("[MSE-MINECRAFT] Ignoring packet type " + type);
+            return;
+        }
+
+        int x = packet.optInt("x");
+        int y = packet.optInt("y", 64);
+        int z = packet.optInt("z");
+        String blockId = packet.optString("block_id", "STONE");
+
+        getLogger().info("[MSE-MINECRAFT] Scheduling " + blockId + " @ " + x + "," + y + "," + z);
+
+        Bukkit.getScheduler().runTask(this, () -> {
+            if (Bukkit.getWorlds().isEmpty()) {
+                getLogger().severe("[MSE-MINECRAFT] No loaded world available.");
+                return;
+            }
+
+            Material mat = Material.matchMaterial(blockId);
+            if (mat == null) {
+                getLogger().warning("[MSE-MINECRAFT] Unknown material " + blockId + "; using STONE.");
+                mat = Material.STONE;
+            }
+
+            Location loc = new Location(Bukkit.getWorlds().get(0), x, y, z);
+            loc.getBlock().setType(mat);
+            getLogger().info("[MSE-MINECRAFT] Applied " + mat.name() + " @ " + x + "," + y + "," + z);
+        });
     }
 }
