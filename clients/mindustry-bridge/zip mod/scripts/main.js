@@ -1,11 +1,26 @@
 // Multi-Sandbox Engine - Mindustry JS Bridge
-// Current transport: Mindustry -> Relay via HTTP POST /event.
-// Minecraft receives translated events from the Relay over WebSocket.
+// DEBUG BOOT PROBE: prove that this exact ZIP/main.js is being executed.
 
 const relayEventUrl = "http://localhost:8080/event";
+const bridgeVersion = "1.1.1-debug";
 
 function mseLog(message){
     Log.info("[MSE-MINDUSTRY] " + message);
+}
+
+function showBootProbe(){
+    mseLog("BOOT OK - Mindustry Bridge " + bridgeVersion);
+    mseLog("Relay endpoint: " + relayEventUrl);
+
+    // Visible in-game probe, so testing does not depend only on the console.
+    try{
+        Vars.ui.showInfoToast(
+            "[accent]Multi-Sandbox Engine[]\nMindustry Bridge loaded!\n[lightgray]" + bridgeVersion + "[]",
+            8
+        );
+    }catch(err){
+        Log.err("[MSE-MINDUSTRY] Could not show boot toast: " + err);
+    }
 }
 
 function postEvent(packet){
@@ -35,8 +50,6 @@ function sendBlockEvent(event){
         mseLog("Could not read block metadata: " + err);
     }
 
-    // build1/build4 are deletion markers understood by the Relay.
-    // Keep the current convention while the mapping protocol is still experimental.
     if(event.breaking){
         blockName = blockSize > 1 ? "build4" : "build1";
     }
@@ -57,11 +70,12 @@ function sendBlockEvent(event){
 }
 
 Events.on(EventType.ClientLoadEvent, cons(event => {
-    mseLog("JS bridge loaded. Relay endpoint: " + relayEventUrl);
+    showBootProbe();
 }));
 
 Events.on(EventType.BlockBuildEndEvent, cons(event => {
+    mseLog("BlockBuildEndEvent received.");
     sendBlockEvent(event);
 }));
 
-mseLog("Script initialized.");
+mseLog("main.js parsed - waiting for ClientLoadEvent.");
