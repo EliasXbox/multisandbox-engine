@@ -27,11 +27,16 @@ function postEvent(packet){
     const body = JSON.stringify(packet);
     mseLog("TX " + body);
 
-    Http.post(relayEventUrl, body, res => {
-        mseLog("Relay HTTP " + res.getStatus());
-    }, err => {
-        Log.err("[MSE-MINDUSTRY] Relay HTTP ERROR: " + err);
-    });
+    // Arc Http.post(url, body) returns a request builder.
+    // Configure callbacks on that request, then submit it.
+    Http.post(relayEventUrl, body)
+        .header("Content-Type", "application/json")
+        .error(cons(err => {
+            Log.err("[MSE-MINDUSTRY] Relay HTTP ERROR: " + err);
+        }))
+        .submit(cons(res => {
+            mseLog("Relay HTTP " + res.getStatus());
+        }));
 }
 
 function sendBlockEvent(event){
