@@ -34,8 +34,10 @@ function postEvent(packet){
         .error(cons(err => {
             Log.err("[MSE-MINDUSTRY] Relay HTTP ERROR: " + err);
         }))
-        .submit(cons(res => {
-            mseLog("Relay HTTP " + res.getStatus());
+        .submit(new Packages.arc.func.ConsT({
+            get: function(res){
+                mseLog("Relay HTTP " + res.getStatus());
+            }
         }));
 }
 
