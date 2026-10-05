@@ -2,7 +2,7 @@
   "name": "multisandboxengine-mindustry",
   "displayName": "Multi-Sandbox Engine (MSE)",
   "author": "EliasGX",
-  "description": "Ponte em JS para comunicação WebSocket com o Relay Server.",
-  "version": "1.0.0",
+  "description": "Ponte oficial JS do Mindustry para o Multi-Sandbox Engine Relay.",
+  "version": "1.1.0",
   "minGameVersion": "145"
 }
