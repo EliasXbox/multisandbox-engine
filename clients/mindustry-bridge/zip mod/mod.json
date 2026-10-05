@@ -3,6 +3,6 @@
   "displayName": "Multi-Sandbox Engine (MSE)",
   "author": "EliasGX",
   "description": "Ponte oficial JS do Mindustry para o Multi-Sandbox Engine Relay.",
-  "version": "1.1.0",
+  "version": "1.1.1-debug",
   "minGameVersion": "145"
 }
