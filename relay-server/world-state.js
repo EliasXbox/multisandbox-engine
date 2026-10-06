@@ -30,7 +30,7 @@ class WorldState {
             volume: { x: Number(volume.x || 1), z: Number(volume.z || 1), y: Number(volume.y || 1) },
             rotation: Number(spec.rotation || 0),
             source_game: spec.source_game || "UNKNOWN",
-            revision: this.nextRevision()
+            revision: 0
         };
 
         const overlaps = new Set();
@@ -42,6 +42,7 @@ class WorldState {
         }
         for (const existingId of overlaps) this.removeObject(existingId);
 
+        object.revision = this.nextRevision();
         this.objects.set(object.id, object);
         for (let dx = 0; dx < object.volume.x; dx++) {
             for (let dz = 0; dz < object.volume.z; dz++) {
