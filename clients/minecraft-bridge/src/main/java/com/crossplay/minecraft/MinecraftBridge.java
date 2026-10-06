@@ -72,11 +72,13 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         }
 
         int x = packet.optInt("x");
-        int logicalY = packet.optInt("y", 1);\n        int y = logicalY + MSE_Y_OFFSET;
+        int logicalY = packet.optInt("y", 1);
+        int y = logicalY + MSE_Y_OFFSET;
         int z = packet.optInt("z");
         String blockId = packet.optString("block_id", "STONE");
 
-        getLogger().info("[MSE-MINECRAFT] Scheduling " + blockId + " @ " + x + "," + y + "," + z +\n                " (MSE logical Y=" + logicalY + ", offset=+" + MSE_Y_OFFSET + ")");
+        getLogger().info("[MSE-MINECRAFT] Scheduling " + blockId + " @ " + x + "," + y + "," + z +
+                " (MSE logical Y=" + logicalY + ", offset=+" + MSE_Y_OFFSET + ")");
 
         Bukkit.getScheduler().runTask(this, () -> {
             if (Bukkit.getWorlds().isEmpty()) {
