@@ -1,10 +1,12 @@
 // Multi-Sandbox Engine - Mindustry JS Bridge
-// v1.2 experimental: two-way blocks + crossplay chat.
+// World Sync experimental core: snapshots, incremental blocks, chat and visual player proxies.
 
 const relayBaseUrl = "http://localhost:8080";
 const relayEventUrl = relayBaseUrl + "/event";
 const relayPollUrl = relayBaseUrl + "/poll?game=MINDUSTRY";
-const bridgeVersion = "1.2-dev1";
+const bridgeVersion = "world-sync-dev1";
+const snapshotChunkSize = 128;
+const minecraftPlayers = {};
 
 function mseLog(message){
     Log.info("[MSE-MINDUSTRY] " + message);
@@ -16,13 +18,11 @@ function javaCallback(fn){
 
 function postEvent(packet){
     const body = JSON.stringify(packet);
-    mseLog("TX " + body);
-
     Http.post(relayEventUrl, body)
         .header("Content-Type", "application/json")
         .error(cons(err => Log.err("[MSE-MINDUSTRY] Relay HTTP ERROR: " + err)))
         .submit(javaCallback(function(res){
-            mseLog("Relay HTTP " + res.getStatus());
+            if(res.getStatus() >= 400) mseLog("Relay HTTP " + res.getStatus());
         }));
 }
 
@@ -32,18 +32,16 @@ function sendBlockEvent(event){
 
     let blockName = "unknown";
     let blockSize = 1;
+    let rotation = 0;
 
     try{
         if(tile.block() != null){
             blockName = tile.block().name;
             blockSize = tile.block().size;
         }
+        if(tile.build != null) rotation = tile.build.rotation;
     }catch(err){
         mseLog("Could not read block metadata: " + err);
-    }
-
-    if(event.breaking){
-        blockName = blockSize > 1 ? "build4" : "build1";
     }
 
     postEvent({
@@ -54,39 +52,142 @@ function sendBlockEvent(event){
         y: tile.y,
         block_id: blockName,
         size: blockSize,
+        rotation: rotation,
+        layer: "block",
         breaking: event.breaking
     });
+}
+
+function collectSnapshotObjects(){
+    const objects = [];
+    const seenBuildings = {};
+
+    for(let x = 0; x < Vars.world.width(); x++){
+        for(let y = 0; y < Vars.world.height(); y++){
+            const tile = Vars.world.tile(x, y);
+            if(tile == null || tile.block() == null) continue;
+
+            const block = tile.block();
+            if(block.name === "air") continue;
+
+            let originX = x;
+            let originY = y;
+            let rotation = 0;
+
+            try{
+                if(tile.build != null && tile.build.tile != null){
+                    originX = tile.build.tile.x;
+                    originY = tile.build.tile.y;
+                    rotation = tile.build.rotation;
+                    const buildingKey = originX + ":" + originY;
+                    if(seenBuildings[buildingKey]) continue;
+                    seenBuildings[buildingKey] = true;
+                }
+            }catch(err){}
+
+            objects.push({
+                x: originX,
+                y: originY,
+                block_id: block.name,
+                layer: "block",
+                rotation: rotation
+            });
+        }
+    }
+
+    // Floor/overlay/ore layers intentionally join this same snapshot format
+    // after the conversion registry is expanded.
+    return objects;
+}
+
+function sendWorldSnapshot(){
+    if(Vars.world == null) return;
+
+    const snapshotId = "mindustry-" + Date.now();
+    const objects = collectSnapshotObjects();
+
+    mseLog("Snapshot BEGIN " + snapshotId + " with " + objects.length + " block objects");
+    postEvent({
+        type: "WORLD_SNAPSHOT_BEGIN",
+        game: "MINDUSTRY",
+        source_game: "MINDUSTRY",
+        snapshot_id: snapshotId,
+        width: Vars.world.width(),
+        height: Vars.world.height()
+    });
+
+    for(let i = 0; i < objects.length; i += snapshotChunkSize){
+        postEvent({
+            type: "WORLD_SNAPSHOT_CHUNK",
+            game: "MINDUSTRY",
+            source_game: "MINDUSTRY",
+            snapshot_id: snapshotId,
+            objects: objects.slice(i, i + snapshotChunkSize)
+        });
+    }
+
+    postEvent({
+        type: "WORLD_SNAPSHOT_END",
+        game: "MINDUSTRY",
+        source_game: "MINDUSTRY",
+        snapshot_id: snapshotId
+    });
+    mseLog("Snapshot END " + snapshotId);
+}
+
+function sendLocalPlayerState(){
+    try{
+        if(Vars.player == null || Vars.player.unit() == null) return;
+        const tileSize = Vars.tilesize;
+        postEvent({
+            type: "PLAYER_STATE",
+            game: "MINDUSTRY",
+            source_game: "MINDUSTRY",
+            player_id: "MINDUSTRY:" + Vars.player.uuid(),
+            player: Vars.player.name,
+            x: Vars.player.x / tileSize,
+            y: Vars.player.y / tileSize,
+            mse_y: 5,
+            rotation: Vars.player.unit().rotation
+        });
+    }catch(err){
+        mseLog("Player state ERROR: " + err);
+    }
 }
 
 function applyRelayEvent(packet){
     if(packet.type === "CHAT_MESSAGE"){
         if(Vars.ui && Vars.ui.chatfrag){
-            Vars.ui.chatfrag.addMessage(
-                "[#55FF55][MSE][" + packet.game + "] [white]<" + packet.player + "> " + packet.message
-            );
+            Vars.ui.chatfrag.addMessage("[#55FF55][MSE][" + packet.game + "] [white]<" + packet.player + "> " + packet.message);
         }
         return;
     }
 
+    if(packet.type === "PLAYER_STATE" && packet.source_game === "MINECRAFT"){
+        minecraftPlayers[String(packet.id || packet.player_id)] = packet;
+        return;
+    }
+
+    if(packet.type === "PLAYER_DESPAWN"){
+        delete minecraftPlayers[String(packet.player_id)];
+        return;
+    }
+
     if(packet.type === "MINDUSTRY_SET_BLOCK"){
-        const x = Number(packet.x);
-        const y = Number(packet.y);
+        const x = Math.round(Number(packet.x));
+        const y = Math.round(Number(packet.y));
         const blockName = String(packet.block_id || "air");
         const tile = Vars.world.tile(x, y);
-
-        if(tile == null){
-            mseLog("RX block ignored: tile outside world @ " + x + "," + y);
-            return;
-        }
+        if(tile == null) return;
 
         const block = Vars.content.block(blockName);
         if(block == null){
-            mseLog("RX block ignored: unknown Mindustry block " + blockName);
+            mseLog("RX unknown block " + blockName);
             return;
         }
 
         Core.app.post(run(() => {
-            tile.setNet(block, Team.sharded, 0);
+            tile.setNet(block, Team.sharded, Number(packet.rotation || 0));
             mseLog("RX applied " + blockName + " @ " + x + "," + y);
         }));
     }
@@ -99,9 +200,7 @@ function pollRelay(){
             try{
                 const data = JSON.parse(res.getResultAsString());
                 if(data.events){
-                    for(let i = 0; i < data.events.length; i++){
-                        applyRelayEvent(data.events[i]);
-                    }
+                    for(let i = 0; i < data.events.length; i++) applyRelayEvent(data.events[i]);
                 }
             }catch(err){
                 Log.err("[MSE-MINDUSTRY] Poll parse/apply ERROR: " + err);
@@ -111,25 +210,23 @@ function pollRelay(){
 
 Events.on(EventType.ClientLoadEvent, cons(event => {
     mseLog("BOOT OK - Mindustry Bridge " + bridgeVersion);
-    try{
-        Vars.ui.showInfoToast("[accent]Multi-Sandbox Engine[]\n[lightgray]" + bridgeVersion + "[]", 5);
-    }catch(err){}
-
-    // HTTP compatibility transport: poll Relay twice per second for inbound MSE events.
+    try{ Vars.ui.showInfoToast("[accent]Multi-Sandbox Engine[]\n[lightgray]" + bridgeVersion + "[]", 5); }catch(err){}
     Timer.schedule(run(() => pollRelay()), 0.5, 0.5);
+    Timer.schedule(run(() => sendLocalPlayerState()), 1.0, 0.2);
+}));
+
+Events.on(EventType.WorldLoadEvent, cons(event => {
+    // Give the world/buildings a moment to finish loading before scanning.
+    Timer.schedule(run(() => sendWorldSnapshot()), 2.0);
 }));
 
 Events.on(EventType.BlockBuildEndEvent, cons(event => {
     sendBlockEvent(event);
 }));
 
-// ClientChatEvent fires only for chat sent by this local Mindustry client.
 Events.on(EventType.ClientChatEvent, cons(event => {
     let playerName = "MindustryPlayer";
-    try{
-        if(Vars.player != null && Vars.player.name != null) playerName = Vars.player.name;
-    }catch(err){}
-
+    try{ if(Vars.player != null && Vars.player.name != null) playerName = Vars.player.name; }catch(err){}
     postEvent({
         type: "CHAT_MESSAGE",
         game: "MINDUSTRY",
@@ -137,6 +234,20 @@ Events.on(EventType.ClientChatEvent, cons(event => {
         player: playerName,
         message: event.message
     });
+}));
+
+// Minecraft players are visual-only Dagger proxies in this first implementation.
+// No Unit is spawned, so the proxy cannot fight, collide, pathfind or affect gameplay.
+Events.run(Trigger.draw, run(() => {
+    try{
+        const region = UnitTypes.dagger.fullIcon;
+        const tileSize = Vars.tilesize;
+        for(let id in minecraftPlayers){
+            const p = minecraftPlayers[id];
+            Draw.rect(region, Number(p.x) * tileSize, Number(p.y) * tileSize,
+                region.width * Draw.scl, region.height * Draw.scl, Number(p.rotation || 0) - 90);
+        }
+    }catch(err){}
 }));
 
 mseLog("main.js parsed - " + bridgeVersion);
