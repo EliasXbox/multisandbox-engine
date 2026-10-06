@@ -1,27 +1,19 @@
-const http = require('http');
-const WebSocket = require('ws');
+const http = require("http");
+const WebSocket = require("ws");
+const WorldState = require("./world-state");
+const BLOCK_REGISTRY = require("./registry/block-mappings.json");
+const WORLD_CONFIG = require("./config/world-sync.json");
 
-// v1.2 mapping registry: one source of truth for both directions.
-const BLOCK_REGISTRY = require('./registry/block-mappings.json');
-
-const BLOCK_MAP = Object.fromEntries(
-    BLOCK_REGISTRY.mappings.map(entry => [entry.mindustry, entry])
-);
+const BLOCK_MAP = Object.fromEntries(BLOCK_REGISTRY.mappings.map(entry => [entry.mindustry, entry]));
 const REVERSE_BLOCK_MAP = Object.fromEntries(
-    BLOCK_REGISTRY.mappings.map(entry => [entry.minecraft.replace(/^minecraft:/, '').toUpperCase(), entry])
+    BLOCK_REGISTRY.mappings.map(entry => [entry.minecraft.replace(/^minecraft:/, "").toUpperCase(), entry])
 );
 
+const world = new WorldState();
 const clients = new Map();
 const httpQueues = new Map([["MINDUSTRY", []]]);
 let lastChatMessage = "";
 let lastChatTime = 0;
-
-function getBlockSize(blockName = "") {
-    if (blockName.includes("large") || blockName === "build2") return 2;
-    if (blockName === "build3") return 3;
-    if (blockName === "build4") return 4;
-    return 1;
-}
 
 function normalizeType(data) {
     return data.type || data.action || null;
@@ -32,11 +24,11 @@ function enqueue(targetGame, payload) {
     if (!httpQueues.has(game)) httpQueues.set(game, []);
     const queue = httpQueues.get(game);
     queue.push(payload);
-    if (queue.length > 256) queue.shift();
+    if (queue.length > 4096) queue.shift();
 }
 
 function sendTo(targetGame, payload) {
-    const socket = clients.get(targetGame);
+    const socket = clients.get(String(targetGame).toUpperCase());
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(payload));
         return true;
@@ -52,68 +44,230 @@ function broadcast(payload, exceptSocket = null) {
     });
 }
 
-function handleMindustryBlock(data) {
-    const blockName = data.block || data.block_id || "unknown";
-    const destroying = blockName.startsWith("build") || data.destroy === true || data.breaking === true;
-    const entry = BLOCK_MAP[blockName] || null;
+function mindustryToMse(rawX, rawY) {
+    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const width = Number(world.meta.width || 0);
+    const height = Number(world.meta.height || 0);
+    let x = Number(rawX);
+    let z = Number(rawY);
 
-    if (!destroying && !entry) {
-        console.warn(`[MSE] UNMAPPED Mindustry block: ${blockName}; event skipped to preserve reversible mappings.`);
-        return;
-    }
+    if (cfg.flip_x) x = width > 0 ? (width - 1 - x) : -x;
+    if (cfg.flip_z) z = height > 0 ? (height - 1 - z) : -z;
 
-    const minecraftBlock = destroying ? "AIR" : entry.minecraft;
-    const volume = destroying
-        ? { x: getBlockSize(blockName), z: getBlockSize(blockName), y: 1 }
-        : (entry.volume || { x: 1, z: 1, y: 1 });
+    return {
+        x: x + Number(cfg.offset_x || 0),
+        z: z + Number(cfg.offset_z || 0)
+    };
+}
 
-    let sent = 0;
-    for (let dx = 0; dx < volume.x; dx++) {
-        for (let dz = 0; dz < volume.z; dz++) {
-            for (let dy = 1; dy <= volume.y; dy++) {
-                const payload = {
+function mseToMindustry(rawX, rawZ) {
+    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const width = Number(world.meta.width || 0);
+    const height = Number(world.meta.height || 0);
+    let x = Number(rawX) - Number(cfg.offset_x || 0);
+    let y = Number(rawZ) - Number(cfg.offset_z || 0);
+
+    if (cfg.flip_x) x = width > 0 ? (width - 1 - x) : -x;
+    if (cfg.flip_z) y = height > 0 ? (height - 1 - y) : -y;
+
+    return { x, y };
+}
+
+function objectFromMindustry(data) {
+    const blockName = String(data.block || data.block_id || "unknown");
+    const entry = BLOCK_MAP[blockName];
+    if (!entry) return null;
+    const pos = mindustryToMse(data.x, data.y);
+    return {
+        kind: "block",
+        layer: data.layer || "block",
+        mindustry: entry.mindustry,
+        minecraft: entry.minecraft,
+        x: pos.x,
+        z: pos.z,
+        y: 1,
+        volume: entry.volume || { x: 1, z: 1, y: 1 },
+        rotation: data.rotation || 0,
+        source_game: "MINDUSTRY"
+    };
+}
+
+function renderObjectToMinecraft(object, material = null) {
+    const blockId = material || object.minecraft || "minecraft:air";
+    for (let dx = 0; dx < object.volume.x; dx++) {
+        for (let dz = 0; dz < object.volume.z; dz++) {
+            for (let dy = 0; dy < object.volume.y; dy++) {
+                sendTo("MINECRAFT", {
                     type: "MC_SET_BLOCK",
-                    game: "MINDUSTRY",
-                    source_game: "MINDUSTRY",
-                    x: Number(data.x) + dx,
-                    y: dy,
-                    z: Number(data.y) + dz,
-                    block_id: minecraftBlock,
-                    mse_volume: volume,
-                    mse_origin: { x: Number(data.x), z: Number(data.y), y: 1 }
-                };
-                if (sendTo("MINECRAFT", payload)) sent++;
-                else broadcast(payload);
+                    source_game: "MSE",
+                    object_id: object.id,
+                    revision: object.revision,
+                    x: object.origin.x + dx,
+                    z: object.origin.z + dz,
+                    y: object.origin.y + dy,
+                    block_id: blockId,
+                    mse_origin: object.origin,
+                    mse_volume: object.volume
+                });
             }
         }
     }
-
-    console.log(`[MSE] MINDUSTRY ${blockName} -> ${minecraftBlock} | volume ${volume.x}x${volume.z}x${volume.y} (XxZxY) @ X:${data.x} Z:${data.y} | direct sends: ${sent}`);
 }
 
-function handleMinecraftBlock(data) {
-    const minecraftBlock = String(data.block_id || data.block || "AIR")
-        .replace(/^minecraft:/i, "")
-        .toUpperCase();
-    const entry = minecraftBlock === "AIR" ? null : REVERSE_BLOCK_MAP[minecraftBlock];
-    const mindustryBlock = minecraftBlock === "AIR" ? "air" : (entry && entry.mindustry);
+function sendObjectToMindustry(object, blockId = null) {
+    const pos = mseToMindustry(object.origin.x, object.origin.z);
+    enqueue("MINDUSTRY", {
+        type: "MINDUSTRY_SET_BLOCK",
+        source_game: "MSE",
+        object_id: object.id,
+        revision: object.revision,
+        x: pos.x,
+        y: pos.y,
+        block_id: blockId || object.mindustry || "air",
+        rotation: object.rotation || 0,
+        mse_volume: object.volume
+    });
+}
 
-    if (!mindustryBlock) {
-        console.warn(`[MSE] UNMAPPED Minecraft block: ${minecraftBlock}; event skipped.`);
+function publishCreate(object, sourceGame) {
+    if (sourceGame !== "MINECRAFT") renderObjectToMinecraft(object);
+    else renderObjectToMinecraft(object); // completes multi-cell/3D representation around the placed anchor.
+
+    if (sourceGame !== "MINDUSTRY") sendObjectToMindustry(object);
+    console.log(`[MSE][WORLD r${object.revision}] CREATE ${object.id} ${object.mindustry} <-> ${object.minecraft} @ ${object.origin.x},${object.origin.z} volume ${object.volume.x}x${object.volume.z}x${object.volume.y}`);
+}
+
+function publishRemove(object, sourceGame) {
+    renderObjectToMinecraft(object, "minecraft:air");
+    sendObjectToMindustry(object, "air");
+    console.log(`[MSE][WORLD r${object.revision}] REMOVE ${object.id} requested by ${sourceGame}`);
+}
+
+function handleMindustryBlock(data) {
+    const destroying = data.destroy === true || data.breaking === true ||
+        String(data.block || data.block_id || "").startsWith("build");
+    const pos = mindustryToMse(data.x, data.y);
+
+    if (destroying) {
+        const removed = world.removeAt(pos.x, pos.z, data.layer || "block");
+        if (!removed) {
+            console.warn(`[MSE] Mindustry destroy found no MSE object @ ${pos.x},${pos.z}`);
+            return;
+        }
+        publishRemove(removed, "MINDUSTRY");
         return;
     }
 
-    const payload = {
-        type: "MINDUSTRY_SET_BLOCK",
-        game: "MINECRAFT",
-        source_game: "MINECRAFT",
-        x: Number(data.x),
-        y: Number(data.z),
-        block_id: mindustryBlock
-    };
+    const spec = objectFromMindustry(data);
+    if (!spec) {
+        console.warn(`[MSE] UNMAPPED Mindustry block: ${data.block || data.block_id}; skipped.`);
+        return;
+    }
+    publishCreate(world.createObject(spec), "MINDUSTRY");
+}
 
-    enqueue("MINDUSTRY", payload);
-    console.log(`[MSE] MINECRAFT ${minecraftBlock} -> ${mindustryBlock} @ X:${payload.x} Y:${payload.y} | queued for Mindustry`);
+function handleMinecraftBlock(data) {
+    const minecraftBlock = String(data.block_id || data.block || "AIR").replace(/^minecraft:/i, "").toUpperCase();
+    const entry = REVERSE_BLOCK_MAP[minecraftBlock];
+    if (!entry) {
+        console.warn(`[MSE] UNMAPPED Minecraft block: ${minecraftBlock}; skipped.`);
+        return;
+    }
+
+    const object = world.createObject({
+        kind: "block",
+        layer: "block",
+        mindustry: entry.mindustry,
+        minecraft: entry.minecraft,
+        x: Number(data.x),
+        z: Number(data.z),
+        y: 1,
+        volume: entry.volume || { x: 1, z: 1, y: 1 },
+        source_game: "MINECRAFT"
+    });
+    publishCreate(object, "MINECRAFT");
+}
+
+function handleMinecraftBreak(data) {
+    const removed = world.removeAt(Number(data.x), Number(data.z), "block");
+    if (!removed) {
+        console.warn(`[MSE] Minecraft break found no MSE object @ ${data.x},${data.z}`);
+        return;
+    }
+    publishRemove(removed, "MINECRAFT");
+}
+
+function handleSnapshotBegin(data) {
+    if (String(data.source_game || data.game || "").toUpperCase() !== String(WORLD_CONFIG.authority || "MINDUSTRY").toUpperCase()) {
+        console.warn("[MSE] Snapshot rejected: source is not current authority.");
+        return;
+    }
+    world.beginSnapshot({
+        width: Number(data.width || 0) || null,
+        height: Number(data.height || 0) || null,
+        authority: String(data.source_game || data.game).toUpperCase(),
+        snapshot_id: data.snapshot_id || null
+    });
+    console.log(`[MSE][SNAPSHOT] BEGIN ${data.snapshot_id || ""} ${data.width || "?"}x${data.height || "?"}`);
+}
+
+function handleSnapshotChunk(data) {
+    if (!world.snapshot) return;
+    const converted = [];
+    for (const item of (data.objects || [])) {
+        const spec = objectFromMindustry(item);
+        if (spec) converted.push(spec);
+    }
+    world.appendSnapshot(converted);
+    console.log(`[MSE][SNAPSHOT] CHUNK +${converted.length} mapped objects`);
+}
+
+function sendSnapshotToMinecraft() {
+    sendTo("MINECRAFT", { type: "WORLD_SNAPSHOT_BEGIN", revision: world.revision, meta: world.meta });
+    for (const object of world.objects.values()) renderObjectToMinecraft(object);
+    sendTo("MINECRAFT", { type: "WORLD_SNAPSHOT_END", revision: world.revision, object_count: world.objects.size });
+}
+
+function handleSnapshotEnd(data) {
+    if (!world.snapshot) return;
+    const committed = world.commitSnapshot();
+    console.log(`[MSE][SNAPSHOT] COMMIT r${committed.revision}: ${committed.objects.length} objects`);
+    sendSnapshotToMinecraft();
+}
+
+function handlePlayerState(data) {
+    const sourceGame = String(data.source_game || data.game || "UNKNOWN").toUpperCase();
+    let x = Number(data.x || 0), z = Number(data.z != null ? data.z : data.y || 0);
+    if (sourceGame === "MINDUSTRY") {
+        const pos = mindustryToMse(x, z);
+        x = pos.x; z = pos.z;
+    }
+
+    const player = world.setPlayer({
+        id: data.player_id || `${sourceGame}:${data.player || "player"}`,
+        source_game: sourceGame,
+        name: data.player || data.name || "Player",
+        x, z,
+        y: data.mse_y == null ? 5 : data.mse_y,
+        rotation: data.rotation || 0,
+        connected: true
+    });
+
+    const packet = { type: "PLAYER_STATE", ...player };
+    if (sourceGame === "MINDUSTRY") sendTo("MINECRAFT", packet);
+    else if (sourceGame === "MINECRAFT") {
+        const pos = mseToMindustry(player.x, player.z);
+        enqueue("MINDUSTRY", { ...packet, x: pos.x, y: pos.y });
+    }
+}
+
+function handlePlayerDespawn(data) {
+    const id = data.player_id || `${String(data.source_game || data.game || "UNKNOWN").toUpperCase()}:${data.player || "player"}`;
+    const player = world.removePlayer(id);
+    if (!player) return;
+    const packet = { type: "PLAYER_DESPAWN", player_id: id, source_game: player.source_game };
+    if (player.source_game === "MINDUSTRY") sendTo("MINECRAFT", packet);
+    else enqueue("MINDUSTRY", packet);
 }
 
 function handleChat(data, sourceGame, sourceSocket = null) {
@@ -122,21 +276,15 @@ function handleChat(data, sourceGame, sourceSocket = null) {
     const message = data.message || "";
     const msgKey = `${sourceGame}:${player}:${message}`;
     if (!message) return;
+    if (msgKey === lastChatMessage && (now - lastChatTime) <= 500) return;
 
-    if (msgKey !== lastChatMessage || (now - lastChatTime) > 500) {
-        lastChatMessage = msgKey;
-        lastChatTime = now;
-
-        const payload = { type: "CHAT_MESSAGE", game: sourceGame, source_game: sourceGame, player, message };
-
-        if (sourceGame === "MINDUSTRY") {
-            broadcast(payload, sourceSocket);
-        } else {
-            enqueue("MINDUSTRY", payload);
-            broadcast(payload, sourceSocket);
-        }
-
-        console.log(`[Chat Crossplay] [${sourceGame}] ${player}: ${message}`);
+    lastChatMessage = msgKey;
+    lastChatTime = now;
+    const payload = { type: "CHAT_MESSAGE", game: sourceGame, source_game: sourceGame, player, message };
+    if (sourceGame === "MINDUSTRY") broadcast(payload, sourceSocket);
+    else {
+        enqueue("MINDUSTRY", payload);
+        broadcast(payload, sourceSocket);
     }
 }
 
@@ -145,26 +293,26 @@ function handlePacket(data, ws = null) {
     const sourceGame = String(data.game || data.source_game || "").toUpperCase();
 
     if (packetType === "CONNECT") {
-        const game = sourceGame;
-        if (!game || !ws) return;
-        clients.set(game, ws);
-        ws.mseGame = game;
-        console.log(`[+] [MSE] Game registered: ${game}`);
-        ws.send(JSON.stringify({ type: "CONNECTED", game, status: "ok" }));
+        if (!sourceGame || !ws) return;
+        clients.set(sourceGame, ws);
+        ws.mseGame = sourceGame;
+        ws.send(JSON.stringify({ type: "CONNECTED", game: sourceGame, status: "ok", world: world.summary() }));
+        if (sourceGame === "MINECRAFT" && world.objects.size > 0) sendSnapshotToMinecraft();
         return;
     }
 
     if (packetType === "PLACE_BLOCK") {
         if (sourceGame === "MINDUSTRY") handleMindustryBlock(data);
         else if (sourceGame === "MINECRAFT") handleMinecraftBlock(data);
-        else console.warn("[MSE] PLACE_BLOCK without recognized source:", data);
         return;
     }
-
-    if (packetType === "CHAT_MESSAGE") {
-        handleChat(data, sourceGame || "UNKNOWN", ws);
-        return;
-    }
+    if (packetType === "BREAK_BLOCK" && sourceGame === "MINECRAFT") return handleMinecraftBreak(data);
+    if (packetType === "WORLD_SNAPSHOT_BEGIN") return handleSnapshotBegin(data);
+    if (packetType === "WORLD_SNAPSHOT_CHUNK") return handleSnapshotChunk(data);
+    if (packetType === "WORLD_SNAPSHOT_END") return handleSnapshotEnd(data);
+    if (packetType === "PLAYER_STATE") return handlePlayerState(data);
+    if (packetType === "PLAYER_DESPAWN") return handlePlayerDespawn(data);
+    if (packetType === "CHAT_MESSAGE") return handleChat(data, sourceGame || "UNKNOWN", ws);
 
     console.log("[MSE] Ignored packet:", data);
 }
@@ -175,14 +323,13 @@ const server = http.createServer((req, res) => {
         req.on("data", chunk => body += chunk.toString());
         req.on("end", () => {
             try {
-                const data = JSON.parse(body);
-                handlePacket(data);
+                handlePacket(JSON.parse(body));
                 res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ status: "ok" }));
+                res.end(JSON.stringify({ status: "ok", revision: world.revision }));
             } catch (err) {
-                console.error("[MSE] Invalid HTTP JSON:", err.message);
+                console.error("[MSE] Invalid HTTP event:", err);
                 res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ status: "error", error: "invalid_json" }));
+                res.end(JSON.stringify({ status: "error", error: err.message }));
             }
         });
         return;
@@ -194,7 +341,7 @@ const server = http.createServer((req, res) => {
         const queue = httpQueues.get(game) || [];
         const events = queue.splice(0, queue.length);
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", events }));
+        res.end(JSON.stringify({ status: "ok", revision: world.revision, events }));
         return;
     }
 
@@ -204,8 +351,15 @@ const server = http.createServer((req, res) => {
             status: "ok",
             websocketClients: wss.clients.size,
             registeredGames: Array.from(clients.keys()),
-            queuedMindustryEvents: (httpQueues.get("MINDUSTRY") || []).length
+            queuedMindustryEvents: (httpQueues.get("MINDUSTRY") || []).length,
+            world: world.summary()
         }));
+        return;
+    }
+
+    if (req.method === "GET" && req.url === "/world") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ...world.summary(), objects: Array.from(world.objects.values()), players: Array.from(world.players.values()) }));
         return;
     }
 
@@ -214,24 +368,18 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocket.Server({ server });
-
 wss.on("connection", ws => {
     console.log("[+] New WebSocket client connected");
     ws.on("message", message => {
         try { handlePacket(JSON.parse(message.toString()), ws); }
-        catch (err) { console.error("[MSE] WebSocket processing error:", err.message); }
+        catch (err) { console.error("[MSE] WebSocket processing error:", err); }
     });
     ws.on("close", () => {
-        if (ws.mseGame && clients.get(ws.mseGame) === ws) {
-            clients.delete(ws.mseGame);
-            console.log(`[-] [MSE] Game disconnected: ${ws.mseGame}`);
-        }
+        if (ws.mseGame && clients.get(ws.mseGame) === ws) clients.delete(ws.mseGame);
     });
 });
 
 server.listen(8080, () => {
-    console.log("[Relay Server] Listening on port 8080");
-    console.log("[Relay Server] WebSocket: ws://localhost:8080");
-    console.log("[Relay Server] HTTP events: POST http://localhost:8080/event");
-    console.log("[Relay Server] Mindustry poll: GET http://localhost:8080/poll?game=MINDUSTRY");
+    console.log("[Relay Server] MSE World Sync Core listening on :8080");
+    console.log("[Relay Server] GET /health for state summary; GET /world for debug state.");
 });
