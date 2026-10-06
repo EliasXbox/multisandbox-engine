@@ -1,32 +1,14 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-// v1.2 rule: mappings must be one-to-one whenever possible so they can be reversed.
-const BLOCK_MAP = {
-    "conveyor": "HOPPER",
-    "titanium-conveyor": "DROPPER",
-    "armored-conveyor": "DISPENSER",
-    "plastanium-conveyor": "PISTON",
-    "duct": "CHAIN",
-    "armored-duct": "IRON_BARS",
-    "router": "CHEST",
-    "junction": "TRAPPED_CHEST",
-    "duo": "TARGET",
-    "scatter": "OBSERVER",
-    "scorch": "MAGMA_BLOCK",
-    "hail": "TNT",
-    "wave": "SPONGE",
-    "copper-wall": "DRIED_KELP_BLOCK",
-    "copper-wall-large": "NETHERITE_BLOCK",
-    "titanium-wall": "IRON_BLOCK",
-    "thorium-wall": "PURPUR_BLOCK",
-    "pneumatic-drill": "DIAMOND_ORE",
-    "mechanical-drill": "IRON_ORE",
-    "power-node": "LIGHTNING_ROD"
-};
+// v1.2 mapping registry: one source of truth for both directions.
+const BLOCK_REGISTRY = require('./registry/block-mappings.json');
 
+const BLOCK_MAP = Object.fromEntries(
+    BLOCK_REGISTRY.mappings.map(entry => [entry.mindustry, entry])
+);
 const REVERSE_BLOCK_MAP = Object.fromEntries(
-    Object.entries(BLOCK_MAP).map(([mindustry, minecraft]) => [minecraft, mindustry])
+    BLOCK_REGISTRY.mappings.map(entry => [entry.minecraft.replace(/^minecraft:/, '').toUpperCase(), entry])
 );
 
 const clients = new Map();
@@ -72,43 +54,49 @@ function broadcast(payload, exceptSocket = null) {
 
 function handleMindustryBlock(data) {
     const blockName = data.block || data.block_id || "unknown";
-    let minecraftBlock = null;
-    const size = getBlockSize(blockName);
+    const destroying = blockName.startsWith("build") || data.destroy === true || data.breaking === true;
+    const entry = BLOCK_MAP[blockName] || null;
 
-    if (blockName.startsWith("build") || data.destroy === true || data.breaking === true) {
-        minecraftBlock = "AIR";
-    } else {
-        minecraftBlock = BLOCK_MAP[blockName] || null;
-    }
-
-    if (!minecraftBlock) {
+    if (!destroying && !entry) {
         console.warn(`[MSE] UNMAPPED Mindustry block: ${blockName}; event skipped to preserve reversible mappings.`);
         return;
     }
 
+    const minecraftBlock = destroying ? "AIR" : entry.minecraft;
+    const volume = destroying
+        ? { x: getBlockSize(blockName), z: getBlockSize(blockName), y: 1 }
+        : (entry.volume || { x: 1, z: 1, y: 1 });
+
     let sent = 0;
-    for (let dx = 0; dx < size; dx++) {
-        for (let dz = 0; dz < size; dz++) {
-            const payload = {
-                type: "MC_SET_BLOCK",
-                game: "MINDUSTRY",
-                source_game: "MINDUSTRY",
-                x: Number(data.x) + dx,
-                y: 64,
-                z: Number(data.y) + dz,
-                block_id: minecraftBlock
-            };
-            if (sendTo("MINECRAFT", payload)) sent++;
-            else broadcast(payload);
+    for (let dx = 0; dx < volume.x; dx++) {
+        for (let dz = 0; dz < volume.z; dz++) {
+            for (let dy = 1; dy <= volume.y; dy++) {
+                const payload = {
+                    type: "MC_SET_BLOCK",
+                    game: "MINDUSTRY",
+                    source_game: "MINDUSTRY",
+                    x: Number(data.x) + dx,
+                    y: dy,
+                    z: Number(data.y) + dz,
+                    block_id: minecraftBlock,
+                    mse_volume: volume,
+                    mse_origin: { x: Number(data.x), z: Number(data.y), y: 1 }
+                };
+                if (sendTo("MINECRAFT", payload)) sent++;
+                else broadcast(payload);
+            }
         }
     }
 
-    console.log(`[MSE] MINDUSTRY ${blockName} -> ${minecraftBlock} @ X:${data.x} Z:${data.y} | direct sends: ${sent}`);
+    console.log(`[MSE] MINDUSTRY ${blockName} -> ${minecraftBlock} | volume ${volume.x}x${volume.z}x${volume.y} (XxZxY) @ X:${data.x} Z:${data.y} | direct sends: ${sent}`);
 }
 
 function handleMinecraftBlock(data) {
-    const minecraftBlock = String(data.block_id || data.block || "AIR").toUpperCase();
-    const mindustryBlock = minecraftBlock === "AIR" ? "air" : REVERSE_BLOCK_MAP[minecraftBlock];
+    const minecraftBlock = String(data.block_id || data.block || "AIR")
+        .replace(/^minecraft:/i, "")
+        .toUpperCase();
+    const entry = minecraftBlock === "AIR" ? null : REVERSE_BLOCK_MAP[minecraftBlock];
+    const mindustryBlock = minecraftBlock === "AIR" ? "air" : (entry && entry.mindustry);
 
     if (!mindustryBlock) {
         console.warn(`[MSE] UNMAPPED Minecraft block: ${minecraftBlock}; event skipped.`);
