@@ -85,16 +85,97 @@ multisandbox-engine/
 |-- README.md
 ```
 
-## Running the Current Prototype
+## Quick Start — Testing v1.1.1-beta
 
-1. Start the MSE Relay Server on port `8080`.
-2. Start the Minecraft 1.20.1 Purpur server with the MSE Minecraft plugin installed.
-3. Confirm that the Minecraft bridge connects and registers with the Relay.
-4. Install/enable the current MSE JavaScript ZIP mod in Mindustry.
-5. Enter a Mindustry map and place a currently mapped block.
-6. The event should travel through the Relay and appear as its mapped representation in Minecraft.
+This guide runs the first functional MSE prototype: **Mindustry -> Relay -> Minecraft**.
 
-The current Mindustry bridge targets `localhost:8080`, so this prototype expects the Relay to run on the same machine unless the bridge is modified.
+### Requirements
+
+- Node.js and npm.
+- Minecraft Java Edition 1.20.1.
+- A Purpur 1.20.1 server.
+- Mindustry.
+- The MSE v1.1.1-beta Minecraft bridge, Mindustry bridge and Relay Server files.
+
+For the easiest first test, run the Relay, Minecraft server and Mindustry on the **same computer**. The current Mindustry bridge targets `localhost:8080`.
+
+### 1. Start the Relay Server
+
+Open a terminal inside the `relay-server` folder and install its dependency:
+
+```bash
+npm install
+```
+
+Then start MSE:
+
+```bash
+npm start
+```
+
+The Relay should print:
+
+```text
+[Relay Server] Escutando na porta 8080
+```
+
+Keep this terminal open while testing. The Relay is the central connection point between the game bridges.
+
+### 2. Start the Minecraft Bridge
+
+1. Prepare a **Purpur 1.20.1** server.
+2. Put the MSE Minecraft bridge `.jar` inside the server's `plugins/` folder.
+3. Start or restart the Purpur server.
+4. Join the Minecraft server normally.
+
+The Minecraft bridge connects to the Relay through WebSocket. Start the Relay **before** the Minecraft server for the simplest test.
+
+When the connection succeeds, the Relay should report a WebSocket client connection.
+
+### 3. Install the Mindustry Bridge
+
+1. Open Mindustry's Mods menu.
+2. Import/install the MSE Mindustry JavaScript ZIP mod.
+3. Make sure the mod is enabled.
+4. Restart Mindustry if requested.
+5. Enter a playable map.
+
+> The JavaScript ZIP mod is the current Mindustry bridge. The Java Mindustry mod kept in the repository is outdated and should not be used for this test.
+
+### 4. Test MSE
+
+With all three components running:
+
+```text
+Mindustry -> MSE Relay -> Minecraft
+```
+
+Place a block in Mindustry that exists in the current Relay block mapping.
+
+If the test succeeds:
+
+- Mindustry sends the block event to `http://localhost:8080/event`.
+- The Relay logs the received block and its Minecraft conversion.
+- The Minecraft bridge receives an `MC_SET_BLOCK` packet.
+- The mapped Minecraft block appears at the translated coordinates.
+
+Mindustry `X/Y` currently maps to Minecraft `X/Z`, with Minecraft height fixed at `Y=64` in the v1.1.1-beta prototype.
+
+### Troubleshooting
+
+**Nothing happens when placing a Mindustry block:** make sure the Relay terminal is still running, the JavaScript ZIP mod is enabled, and the block has a mapping in the current Relay.
+
+**Minecraft does not receive anything:** check the Relay terminal for a WebSocket connection. Also confirm the bridge `.jar` is in the Purpur server's `plugins/` folder and that the server is running Minecraft 1.20.1.
+
+**Mindustry cannot reach the Relay:** v1.1.1-beta currently expects `localhost:8080`. If the games and Relay are on different computers, the bridge configuration/code must currently be adjusted manually.
+
+**A block becomes an unexpected Minecraft block:** mappings are experimental and incomplete in v1.1.1-beta. The mapping table is actively being redesigned toward consistent one-to-one cross-game representations.
+
+### Testing Development Builds
+
+The `main` branch documents the released v1.1.1-beta baseline. Experimental work such as **Minecraft -> Mindustry synchronization, one-to-one mappings and crossplay chat** is developed separately and may be unstable.
+
+If you are testing a development branch, use the Relay and bridges from the **same branch/version** whenever possible. Mixing components from different protocol revisions can produce missing events or incompatible behavior.
 
 ## Protocol Direction Today
 
