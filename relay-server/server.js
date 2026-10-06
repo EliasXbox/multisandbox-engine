@@ -1,4 +1,4 @@
-const http = require("http");
+const http = require("http");\nconst fs = require("fs");\nconst path = require("path");
 const WebSocket = require("ws");
 const WorldState = require("./world-state");
 const BLOCK_REGISTRY = require("./registry/block-mappings.json");
@@ -10,6 +10,31 @@ const REVERSE_BLOCK_MAP = Object.fromEntries(
 );
 
 const world = new WorldState();
+const STATE_FILE = path.join(__dirname, "data", "world-state.json");
+const deferredDuringSnapshot = [];
+
+function persistWorld() {
+    try {
+        fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+        const temp = STATE_FILE + ".tmp";
+        fs.writeFileSync(temp, JSON.stringify(world.exportData(), null, 2));
+        fs.renameSync(temp, STATE_FILE);
+    } catch (err) {
+        console.error("[MSE] Could not persist world state:", err.message);
+    }
+}
+
+function loadPersistedWorld() {
+    try {
+        if (!fs.existsSync(STATE_FILE)) return;
+        world.loadData(JSON.parse(fs.readFileSync(STATE_FILE, "utf8")));
+        console.log(`[MSE] Restored persisted world state: ${world.objects.size} objects at r${world.revision}`);
+    } catch (err) {
+        console.error("[MSE] Could not restore persisted world state:", err.message);
+    }
+}
+
+loadPersistedWorld();
 const clients = new Map();
 const httpQueues = new Map([["MINDUSTRY", []]]);
 let lastChatMessage = "";
@@ -144,6 +169,11 @@ function publishRemove(object, sourceGame) {
 }
 
 function handleMindustryBlock(data) {
+    if (world.snapshot) {
+        deferredDuringSnapshot.push({ ...data });
+        return;
+    }
+
     const destroying = data.destroy === true || data.breaking === true ||
         String(data.block || data.block_id || "").startsWith("build");
     const pos = mindustryToMse(data.x, data.y);
@@ -163,7 +193,7 @@ function handleMindustryBlock(data) {
         console.warn(`[MSE] UNMAPPED Mindustry block: ${data.block || data.block_id}; skipped.`);
         return;
     }
-    publishCreate(world.createObject(spec), "MINDUSTRY");
+    publishCreate(world.createObject(spec), "MINDUSTRY");\n    persistWorld();
 }
 
 function handleMinecraftBlock(data) {
@@ -185,7 +215,7 @@ function handleMinecraftBlock(data) {
         volume: entry.volume || { x: 1, z: 1, y: 1 },
         source_game: "MINECRAFT"
     });
-    publishCreate(object, "MINECRAFT");
+    publishCreate(object, "MINECRAFT");\n    persistWorld();
 }
 
 function handleMinecraftBreak(data) {
@@ -194,7 +224,7 @@ function handleMinecraftBreak(data) {
         console.warn(`[MSE] Minecraft break found no MSE object @ ${data.x},${data.z}`);
         return;
     }
-    publishRemove(removed, "MINECRAFT");
+    publishRemove(removed, "MINECRAFT");\n    persistWorld();
 }
 
 function handleSnapshotBegin(data) {
@@ -232,6 +262,10 @@ function handleSnapshotEnd(data) {
     if (!world.snapshot) return;
     const committed = world.commitSnapshot();
     console.log(`[MSE][SNAPSHOT] COMMIT r${committed.revision}: ${committed.objects.length} objects`);
+    while (deferredDuringSnapshot.length > 0) {
+        handleMindustryBlock(deferredDuringSnapshot.shift());
+    }
+    persistWorld();
     sendSnapshotToMinecraft();
 }
 
