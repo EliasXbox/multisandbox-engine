@@ -1,13 +1,17 @@
 const http = require('http');
 const WebSocket = require('ws');
 
+// v1.2 rule: mappings must be one-to-one whenever possible so they can be reversed.
 const BLOCK_MAP = {
     "conveyor": "HOPPER",
-    "titanium-conveyor": "HOPPER",
-    "armored-conveyor": "HOPPER",
-    "router": "HOPPER",
-    "junction": "REPEATER",
-    "duo": "DISPENSER",
+    "titanium-conveyor": "DROPPER",
+    "armored-conveyor": "DISPENSER",
+    "plastanium-conveyor": "PISTON",
+    "duct": "CHAIN",
+    "armored-duct": "IRON_BARS",
+    "router": "CHEST",
+    "junction": "TRAPPED_CHEST",
+    "duo": "TARGET",
     "scatter": "OBSERVER",
     "scorch": "MAGMA_BLOCK",
     "hail": "TNT",
@@ -21,7 +25,12 @@ const BLOCK_MAP = {
     "power-node": "LIGHTNING_ROD"
 };
 
+const REVERSE_BLOCK_MAP = Object.fromEntries(
+    Object.entries(BLOCK_MAP).map(([mindustry, minecraft]) => [minecraft, mindustry])
+);
+
 const clients = new Map();
+const httpQueues = new Map([["MINDUSTRY", []]]);
 let lastChatMessage = "";
 let lastChatTime = 0;
 
@@ -34,6 +43,14 @@ function getBlockSize(blockName = "") {
 
 function normalizeType(data) {
     return data.type || data.action || null;
+}
+
+function enqueue(targetGame, payload) {
+    const game = String(targetGame).toUpperCase();
+    if (!httpQueues.has(game)) httpQueues.set(game, []);
+    const queue = httpQueues.get(game);
+    queue.push(payload);
+    if (queue.length > 256) queue.shift();
 }
 
 function sendTo(targetGame, payload) {
@@ -55,17 +72,21 @@ function broadcast(payload, exceptSocket = null) {
 
 function handleMindustryBlock(data) {
     const blockName = data.block || data.block_id || "unknown";
-    let minecraftBlock = "STONE";
+    let minecraftBlock = null;
     const size = getBlockSize(blockName);
 
-    if (blockName.startsWith("build") || data.destroy === true) {
+    if (blockName.startsWith("build") || data.destroy === true || data.breaking === true) {
         minecraftBlock = "AIR";
-    } else if (BLOCK_MAP[blockName]) {
-        minecraftBlock = BLOCK_MAP[blockName];
+    } else {
+        minecraftBlock = BLOCK_MAP[blockName] || null;
+    }
+
+    if (!minecraftBlock) {
+        console.warn(`[MSE] UNMAPPED Mindustry block: ${blockName}; event skipped to preserve reversible mappings.`);
+        return;
     }
 
     let sent = 0;
-
     for (let dx = 0; dx < size; dx++) {
         for (let dz = 0; dz < size; dz++) {
             const payload = {
@@ -77,39 +98,34 @@ function handleMindustryBlock(data) {
                 z: Number(data.y) + dz,
                 block_id: minecraftBlock
             };
-
-            if (sendTo("MINECRAFT", payload)) {
-                sent++;
-            } else {
-                broadcast(payload);
-            }
+            if (sendTo("MINECRAFT", payload)) sent++;
+            else broadcast(payload);
         }
     }
 
-    console.log(
-        `[MSE] MINDUSTRY PLACE_BLOCK ${blockName} (${size}x${size}) -> ${minecraftBlock} @ X:${data.x} Z:${data.y} | direct sends: ${sent}`
-    );
+    console.log(`[MSE] MINDUSTRY ${blockName} -> ${minecraftBlock} @ X:${data.x} Z:${data.y} | direct sends: ${sent}`);
 }
 
 function handleMinecraftBlock(data) {
+    const minecraftBlock = String(data.block_id || data.block || "AIR").toUpperCase();
+    const mindustryBlock = minecraftBlock === "AIR" ? "air" : REVERSE_BLOCK_MAP[minecraftBlock];
+
+    if (!mindustryBlock) {
+        console.warn(`[MSE] UNMAPPED Minecraft block: ${minecraftBlock}; event skipped.`);
+        return;
+    }
+
     const payload = {
-        type: "PLACE_BLOCK",
+        type: "MINDUSTRY_SET_BLOCK",
         game: "MINECRAFT",
         source_game: "MINECRAFT",
         x: Number(data.x),
-        y: Number(data.y),
-        z: Number(data.z),
-        block_id: data.block_id || data.block || "STONE"
+        y: Number(data.z),
+        block_id: mindustryBlock
     };
 
-    const sent = sendTo("MINDUSTRY", payload);
-    if (!sent) {
-        broadcast(payload);
-    }
-
-    console.log(
-        `[MSE] MINECRAFT PLACE_BLOCK ${payload.block_id} @ X:${payload.x} Y:${payload.y} Z:${payload.z} | mindustry connected: ${sent}`
-    );
+    enqueue("MINDUSTRY", payload);
+    console.log(`[MSE] MINECRAFT ${minecraftBlock} -> ${mindustryBlock} @ X:${payload.x} Y:${payload.y} | queued for Mindustry`);
 }
 
 function handleChat(data, sourceGame, sourceSocket = null) {
@@ -117,21 +133,21 @@ function handleChat(data, sourceGame, sourceSocket = null) {
     const player = data.player || `${sourceGame}User`;
     const message = data.message || "";
     const msgKey = `${sourceGame}:${player}:${message}`;
-
     if (!message) return;
 
     if (msgKey !== lastChatMessage || (now - lastChatTime) > 500) {
         lastChatMessage = msgKey;
         lastChatTime = now;
 
-        const payload = {
-            type: "CHAT_MESSAGE",
-            game: sourceGame,
-            player,
-            message
-        };
+        const payload = { type: "CHAT_MESSAGE", game: sourceGame, source_game: sourceGame, player, message };
 
-        broadcast(payload, sourceSocket);
+        if (sourceGame === "MINDUSTRY") {
+            broadcast(payload, sourceSocket);
+        } else {
+            enqueue("MINDUSTRY", payload);
+            broadcast(payload, sourceSocket);
+        }
+
         console.log(`[Chat Crossplay] [${sourceGame}] ${player}: ${message}`);
     }
 }
@@ -141,9 +157,8 @@ function handlePacket(data, ws = null) {
     const sourceGame = String(data.game || data.source_game || "").toUpperCase();
 
     if (packetType === "CONNECT") {
-        const game = String(data.game || data.source_game || "").toUpperCase();
+        const game = sourceGame;
         if (!game || !ws) return;
-
         clients.set(game, ws);
         ws.mseGame = game;
         console.log(`[+] [MSE] Game registered: ${game}`);
@@ -152,13 +167,9 @@ function handlePacket(data, ws = null) {
     }
 
     if (packetType === "PLACE_BLOCK") {
-        if (sourceGame === "MINDUSTRY" || (data.y !== undefined && data.z === undefined)) {
-            handleMindustryBlock(data);
-        } else if (sourceGame === "MINECRAFT") {
-            handleMinecraftBlock(data);
-        } else {
-            console.warn("[MSE] PLACE_BLOCK without recognized source_game/game:", data);
-        }
+        if (sourceGame === "MINDUSTRY") handleMindustryBlock(data);
+        else if (sourceGame === "MINECRAFT") handleMinecraftBlock(data);
+        else console.warn("[MSE] PLACE_BLOCK without recognized source:", data);
         return;
     }
 
@@ -173,14 +184,11 @@ function handlePacket(data, ws = null) {
 const server = http.createServer((req, res) => {
     if (req.method === "POST" && req.url === "/event") {
         let body = "";
-
         req.on("data", chunk => body += chunk.toString());
-
         req.on("end", () => {
             try {
                 const data = JSON.parse(body);
                 handlePacket(data);
-
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ status: "ok" }));
             } catch (err) {
@@ -192,12 +200,23 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    if (req.method === "GET" && req.url.startsWith("/poll")) {
+        const url = new URL(req.url, "http://localhost");
+        const game = String(url.searchParams.get("game") || "").toUpperCase();
+        const queue = httpQueues.get(game) || [];
+        const events = queue.splice(0, queue.length);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", events }));
+        return;
+    }
+
     if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             status: "ok",
             websocketClients: wss.clients.size,
-            registeredGames: Array.from(clients.keys())
+            registeredGames: Array.from(clients.keys()),
+            queuedMindustryEvents: (httpQueues.get("MINDUSTRY") || []).length
         }));
         return;
     }
@@ -210,22 +229,14 @@ const wss = new WebSocket.Server({ server });
 
 wss.on("connection", ws => {
     console.log("[+] New WebSocket client connected");
-
     ws.on("message", message => {
-        try {
-            const data = JSON.parse(message.toString());
-            handlePacket(data, ws);
-        } catch (err) {
-            console.error("[MSE] WebSocket processing error:", err.message);
-        }
+        try { handlePacket(JSON.parse(message.toString()), ws); }
+        catch (err) { console.error("[MSE] WebSocket processing error:", err.message); }
     });
-
     ws.on("close", () => {
         if (ws.mseGame && clients.get(ws.mseGame) === ws) {
             clients.delete(ws.mseGame);
             console.log(`[-] [MSE] Game disconnected: ${ws.mseGame}`);
-        } else {
-            console.log("[-] WebSocket client disconnected");
         }
     });
 });
@@ -233,6 +244,6 @@ wss.on("connection", ws => {
 server.listen(8080, () => {
     console.log("[Relay Server] Listening on port 8080");
     console.log("[Relay Server] WebSocket: ws://localhost:8080");
-    console.log("[Relay Server] HTTP compatibility: POST http://localhost:8080/event");
-    console.log("[Relay Server] Health: http://localhost:8080/health");
+    console.log("[Relay Server] HTTP events: POST http://localhost:8080/event");
+    console.log("[Relay Server] Mindustry poll: GET http://localhost:8080/poll?game=MINDUSTRY");
 });
