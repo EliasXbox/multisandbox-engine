@@ -112,6 +112,35 @@ class WorldState {
         return player;
     }
 
+    exportData() {
+        return {
+            revision: this.revision,
+            nextObjectId: this.nextObjectId,
+            meta: this.meta,
+            objects: Array.from(this.objects.values()),
+            players: Array.from(this.players.values())
+        };
+    }
+
+    loadData(data = {}) {
+        this.objects.clear();
+        this.cells.clear();
+        this.players.clear();
+        this.revision = Number(data.revision || 0);
+        this.nextObjectId = Number(data.nextObjectId || 1);
+        this.meta = { ...this.meta, ...(data.meta || {}) };
+
+        for (const object of (data.objects || [])) {
+            this.objects.set(object.id, object);
+            for (let dx = 0; dx < object.volume.x; dx++) {
+                for (let dz = 0; dz < object.volume.z; dz++) {
+                    this.cells.set(this.cellKey(object.origin.x + dx, object.origin.z + dz, object.layer || "block"), object.id);
+                }
+            }
+        }
+        for (const player of (data.players || [])) this.players.set(String(player.id), player);
+    }
+
     summary() {
         return {
             revision: this.revision,
