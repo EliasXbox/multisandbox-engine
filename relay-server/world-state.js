@@ -33,8 +33,14 @@ class WorldState {
             revision: this.nextRevision()
         };
 
-        const existing = this.findAt(object.origin.x, object.origin.z, object.layer);
-        if (existing) this.removeObject(existing.id);
+        const overlaps = new Set();
+        for (let dx = 0; dx < object.volume.x; dx++) {
+            for (let dz = 0; dz < object.volume.z; dz++) {
+                const existingId = this.cells.get(this.cellKey(object.origin.x + dx, object.origin.z + dz, object.layer));
+                if (existingId) overlaps.add(existingId);
+            }
+        }
+        for (const existingId of overlaps) this.removeObject(existingId);
 
         this.objects.set(object.id, object);
         for (let dx = 0; dx < object.volume.x; dx++) {
@@ -117,8 +123,7 @@ class WorldState {
             revision: this.revision,
             nextObjectId: this.nextObjectId,
             meta: this.meta,
-            objects: Array.from(this.objects.values()),
-            players: Array.from(this.players.values())
+            objects: Array.from(this.objects.values())
         };
     }
 
@@ -138,7 +143,6 @@ class WorldState {
                 }
             }
         }
-        for (const player of (data.players || [])) this.players.set(String(player.id), player);
     }
 
     summary() {
