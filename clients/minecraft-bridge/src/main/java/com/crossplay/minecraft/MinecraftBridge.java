@@ -7,6 +7,7 @@ import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.json.JSONObject;
 
@@ -39,6 +40,12 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
 
         relayClient.sendBlockPlace(
                 loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), blockId, false);
+    }
+
+    @EventHandler
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
+        if (relayClient == null) return;
+        relayClient.sendChatMessage(event.getPlayer().getName(), event.getMessage());
     }
 
     private void handleIncomingPacket(JSONObject packet) {
