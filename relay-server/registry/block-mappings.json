@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "dimension_order": "XZY",
+  "notes": [
+    "Mappings are one-to-one whenever possible so reverse translation is deterministic.",
+    "volume uses MSE X x Z x Y ordering.",
+    "Minecraft absolute Y is adapter-specific; v1.2 dev testing currently uses logical Y + 1."
+  ],
+  "mappings": [
+    {
+      "mindustry": "conveyor",
+      "minecraft": "minecraft:stone_slab",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "titanium-conveyor",
+      "minecraft": "minecraft:sandstone_slab",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "armored-conveyor",
+      "minecraft": "minecraft:nether_brick_slab",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "plastanium-conveyor",
+      "minecraft": "minecraft:purpur_slab",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "junction",
+      "minecraft": "minecraft:chiseled_stone_bricks",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "router",
+      "minecraft": "minecraft:cobblestone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "distributor",
+      "minecraft": "minecraft:chiseled_polished_blackstone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "sorter",
+      "minecraft": "minecraft:smooth_stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "inverted-sorter",
+      "minecraft": "minecraft:mossy_stone_bricks",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "overflow-gate",
+      "minecraft": "minecraft:lodestone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "underflow-gate",
+      "minecraft": "minecraft:mossy_cobblestone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 1
+      }
+    },
+    {
+      "mindustry": "mass-driver",
+      "minecraft": "minecraft:bamboo_planks",
+      "volume": {
+        "x": 2,
+        "z": 2,
+        "y": 2
+      }
+    }
+  ],
+  "presets": {
+    "environment_wall": {
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "status": "minecraft-materials-pending"
+    },
+    "height_convention": {
+      "1": "primary placeable layer",
+      "2": "secondary placeable/structure layer",
+      "5": "default Mindustry player/flying-unit logical height",
+      "3-4": "tall wall/structure layers"
+    }
+  }
+}
