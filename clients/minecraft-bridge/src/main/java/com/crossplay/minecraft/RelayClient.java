@@ -73,6 +73,45 @@ public class RelayClient extends WebSocketClient {
         send(packet.toString());
     }
 
+    public void sendBlockBreak(int x, int y, int z) {
+        if (!isOpen()) return;
+        JSONObject packet = new JSONObject();
+        packet.put("type", "BREAK_BLOCK");
+        packet.put("source_game", gameName);
+        packet.put("game", gameName);
+        packet.put("x", x);
+        packet.put("y", y);
+        packet.put("z", z);
+        log("TX " + packet);
+        send(packet.toString());
+    }
+
+    public void sendPlayerState(String playerId, String playerName, double x, double z, double mseY, float rotation) {
+        if (!isOpen()) return;
+        JSONObject packet = new JSONObject();
+        packet.put("type", "PLAYER_STATE");
+        packet.put("source_game", gameName);
+        packet.put("game", gameName);
+        packet.put("player_id", playerId);
+        packet.put("player", playerName);
+        packet.put("x", x);
+        packet.put("z", z);
+        packet.put("mse_y", mseY);
+        packet.put("rotation", rotation);
+        send(packet.toString());
+    }
+
+    public void sendPlayerDespawn(String playerId, String playerName) {
+        if (!isOpen()) return;
+        JSONObject packet = new JSONObject();
+        packet.put("type", "PLAYER_DESPAWN");
+        packet.put("source_game", gameName);
+        packet.put("game", gameName);
+        packet.put("player_id", playerId);
+        packet.put("player", playerName);
+        send(packet.toString());
+    }
+
     public void sendBlockPlace(int x, int y, int z, String blockId, boolean isWall) {
         if (!isOpen()) {
             log("TX PLACE_BLOCK skipped: socket is not open");
