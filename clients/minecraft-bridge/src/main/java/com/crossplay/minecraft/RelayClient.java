@@ -59,6 +59,20 @@ public class RelayClient extends WebSocketClient {
         System.err.println("[MSE-" + gameName + "] WebSocket ERROR " + ex.getMessage());
     }
 
+    public void sendChatMessage(String player, String message) {
+        if (!isOpen() || message == null || message.trim().isEmpty()) return;
+
+        JSONObject packet = new JSONObject();
+        packet.put("type", "CHAT_MESSAGE");
+        packet.put("source_game", gameName);
+        packet.put("game", gameName);
+        packet.put("player", player);
+        packet.put("message", message);
+
+        log("TX CHAT_MESSAGE <" + player + "> " + message);
+        send(packet.toString());
+    }
+
     public void sendBlockPlace(int x, int y, int z, String blockId, boolean isWall) {
         if (!isOpen()) {
             log("TX PLACE_BLOCK skipped: socket is not open");
