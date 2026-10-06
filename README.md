@@ -1,8 +1,8 @@
 # Multi-Sandbox Engine (MSE)
 
-**Branch:** `fix/mse-debug-full-duplex` — active post-v1.1.1 development/debug branch
+**Branch:** `feature/v1.2-bidirectional-chat` — experimental v1.2 development branch
 
-> This branch contains the currently tested Mindustry -> Relay -> Minecraft pipeline, detailed bridge diagnostics, and the foundation for the next two-way synchronization work.
+> This branch contains the experimental v1.2 work: reversible block mappings, two-way synchronization foundations, crossplay chat, logical height/volume conventions, and the central mapping registry.
 
 > Experimental cross-game synchronization layer for sandbox games.
 
@@ -107,6 +107,25 @@ Mindustry  ---- PLACE_BLOCK ---->  Relay  ---- MC_SET_BLOCK ---->  Minecraft
 Minecraft   ---- PLACE_BLOCK ----> Relay ---- Mindustry adapter ----> Mindustry
                                                      NOT YET
 ```
+
+## v1.2 Mapping & Coordinate Model
+
+v1.2 introduces a central block registry at `relay-server/registry/block-mappings.json`. A mapping should be one-to-one whenever possible so the same registry can be reversed deterministically between Mindustry and Minecraft.
+
+Structure dimensions use the order **X x Z x Y**. X/Z describe the shared world plane; Y is logical height for adapters that support vertical space.
+
+The current development convention is:
+
+- logical Y=1: primary placeable layer;
+- logical Y=2: secondary placeable/structure layer;
+- logical Y=3-4: tall walls/structures;
+- logical Y=5: default logical height for Mindustry players/flying units.
+
+For the current Minecraft test adapter, `Minecraft Y = MSE logical Y + 1`, so logical Y=1..5 becomes Minecraft Y=2..6. This is a test offset, not a permanent world-coordinate rule.
+
+Mappings may define a volume. For example, the experimental Mass Driver representation is `2x2x2` Bamboo Planks. Environment/scenario walls are planned as `1x1x4`; their Minecraft materials are still pending.
+
+The first v1.2 registry set uses distinct Minecraft blocks for Conveyor, Titanium Conveyor, Armored Conveyor, Plastanium Conveyor, Junction, Router, Distributor, Sorter, Inverted Sorter, Overflow Gate, Underflow Gate and Mass Driver.
 
 ## Roadmap
 
