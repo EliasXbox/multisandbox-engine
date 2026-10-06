@@ -6,7 +6,7 @@ const relayEventUrl = relayBaseUrl + "/event";
 const relayPollUrl = relayBaseUrl + "/poll?game=MINDUSTRY";
 const bridgeVersion = "world-sync-dev1";
 const snapshotChunkSize = 128;
-const minecraftPlayers = {};
+const minecraftPlayers = {};\nlet applyingRemoteBlock = false;
 
 function mseLog(message){
     Log.info("[MSE-MINDUSTRY] " + message);
@@ -16,13 +16,14 @@ function javaCallback(fn){
     return new Packages.arc.func.ConsT({ get: fn });
 }
 
-function postEvent(packet){
+function postEvent(packet, onDone){
     const body = JSON.stringify(packet);
     Http.post(relayEventUrl, body)
         .header("Content-Type", "application/json")
         .error(cons(err => Log.err("[MSE-MINDUSTRY] Relay HTTP ERROR: " + err)))
         .submit(javaCallback(function(res){
             if(res.getStatus() >= 400) mseLog("Relay HTTP " + res.getStatus());
+            if(onDone) onDone();
         }));
 }
 
@@ -105,8 +106,33 @@ function sendWorldSnapshot(){
 
     const snapshotId = "mindustry-" + Date.now();
     const objects = collectSnapshotObjects();
+    const chunks = [];
+    for(let i = 0; i < objects.length; i += snapshotChunkSize){
+        chunks.push(objects.slice(i, i + snapshotChunkSize));
+    }
 
     mseLog("Snapshot BEGIN " + snapshotId + " with " + objects.length + " block objects");
+
+    function sendChunk(index){
+        if(index >= chunks.length){
+            postEvent({
+                type: "WORLD_SNAPSHOT_END",
+                game: "MINDUSTRY",
+                source_game: "MINDUSTRY",
+                snapshot_id: snapshotId
+            }, function(){ mseLog("Snapshot END " + snapshotId); });
+            return;
+        }
+
+        postEvent({
+            type: "WORLD_SNAPSHOT_CHUNK",
+            game: "MINDUSTRY",
+            source_game: "MINDUSTRY",
+            snapshot_id: snapshotId,
+            objects: chunks[index]
+        }, function(){ sendChunk(index + 1); });
+    }
+
     postEvent({
         type: "WORLD_SNAPSHOT_BEGIN",
         game: "MINDUSTRY",
@@ -114,25 +140,7 @@ function sendWorldSnapshot(){
         snapshot_id: snapshotId,
         width: Vars.world.width(),
         height: Vars.world.height()
-    });
-
-    for(let i = 0; i < objects.length; i += snapshotChunkSize){
-        postEvent({
-            type: "WORLD_SNAPSHOT_CHUNK",
-            game: "MINDUSTRY",
-            source_game: "MINDUSTRY",
-            snapshot_id: snapshotId,
-            objects: objects.slice(i, i + snapshotChunkSize)
-        });
-    }
-
-    postEvent({
-        type: "WORLD_SNAPSHOT_END",
-        game: "MINDUSTRY",
-        source_game: "MINDUSTRY",
-        snapshot_id: snapshotId
-    });
-    mseLog("Snapshot END " + snapshotId);
+    }, function(){ sendChunk(0); });
 }
 
 function sendLocalPlayerState(){
@@ -187,8 +195,13 @@ function applyRelayEvent(packet){
         }
 
         Core.app.post(run(() => {
-            tile.setNet(block, Team.sharded, Number(packet.rotation || 0));
-            mseLog("RX applied " + blockName + " @ " + x + "," + y);
+            applyingRemoteBlock = true;
+            try{
+                tile.setNet(block, Team.sharded, Number(packet.rotation || 0));
+                mseLog("RX applied " + blockName + " @ " + x + "," + y);
+            }finally{
+                applyingRemoteBlock = false;
+            }
         }));
     }
 }
