@@ -258,7 +258,7 @@ Events.run(Trigger.draw, run(() => {
         for(let id in minecraftPlayers){
             const p = minecraftPlayers[id];
             Draw.rect(region, Number(p.x) * tileSize, Number(p.y) * tileSize,
-                region.width * Draw.scl, region.height * Draw.scl, Number(p.rotation || 0) - 90);
+                region.width * region.scl(), region.height * region.scl(), Number(p.rotation || 0) - 90);
         }
     }catch(err){}
 }));
