@@ -14,6 +14,9 @@ import org.json.JSONObject;
 import java.net.URI;
 
 public class MinecraftBridge extends JavaPlugin implements Listener {
+    // Temporary v1.2 test mapping: Minecraft absolute Y = MSE logical Y + 1.
+    private static final int MSE_Y_OFFSET = 1;
+
     private RelayClient relayClient;
 
     @Override
