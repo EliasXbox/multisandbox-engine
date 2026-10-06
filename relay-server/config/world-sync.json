@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "authority": "MINDUSTRY",
+  "minecraft": {
+    "world_base_y": 1
+  },
+  "mindustry_to_mse": {
+    "flip_x": false,
+    "flip_z": false,
+    "offset_x": 0,
+    "offset_z": 0
+  },
+  "notes": [
+    "Coordinate transforms are explicit so mirrored maps can be calibrated without changing protocol code.",
+    "Set flip_x or flip_z after the calibration map identifies the mirrored axis.",
+    "Snapshot authority is provisional for the Minecraft-Mindustry MVP."
+  ]
+}
