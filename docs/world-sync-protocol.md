@@ -76,3 +76,19 @@ This is presence/position visualization only. Combat, health, inventory and inte
 ## Mapping expansion
 
 The registry remains the source of truth for reversible block mappings. World Sync is designed for additional `floor` and `overlay` entries so Mindustry floors, walls and ore overlays do not need to be flattened into one block layer.
+
+
+## Essential v1.2 test mappings
+
+The World Sync registry now includes the essential production/power blocks that were missing from the first cross-game test:
+
+- Mechanical Drill → `minecraft:acacia_planks`, volume `2×2×1`.
+- Pneumatic Drill → `minecraft:iron_block`, volume `2×2×1`.
+- Laser Drill → `minecraft:purpur_block`, volume `3×3×2`.
+- Blast Drill → `minecraft:end_stone_bricks`, volume `4×4×3`.
+- Combustion Generator → `minecraft:blast_furnace`, volume `1×1×1`.
+- Kiln → `minecraft:furnace`, volume `2×2×2`.
+- Power Node → `minecraft:lightning_rod`, volume `1×1×1`.
+- Power Node Large → `minecraft:end_rod`, semantic footprint `2×2`.
+
+The large Power Node is marked as a template candidate. The current generic renderer may fill its 2×2 footprint with End Rods; a later Minecraft adapter renderer can use a sparse visual template without changing the semantic object footprint.
