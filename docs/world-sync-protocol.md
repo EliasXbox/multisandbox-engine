@@ -43,9 +43,24 @@ The Relay persists canonical objects to `relay-server/data/world-state.json`. Ru
 
 Canonical order is `X × Z × Y`.
 
-Minecraft uses X/Z directly and converts logical MSE Y through its adapter offset. The current test adapter uses absolute Minecraft Y = logical Y + 1.
+Minecraft uses X/Z directly and MSE Y as an absolute rendering coordinate. The temporary `logical Y + 1` adapter offset has been retired.
+
+The default Mindustry surface is rendered at Minecraft Y=2. Y=0 is not a floor or world boundary: Y=0 and negative Y remain valid MSE/Minecraft space reserved for future underground gameplay. The Minecraft target world for an authoritative Mindustry snapshot should therefore start empty; the Relay reconstructs the synchronized terrain instead of layering it over a superflat preset.
 
 Mindustry uses its tile X/Y plane as MSE X/Z through the transform in `relay-server/config/world-sync.json`. `flip_x`, `flip_z`, `offset_x`, and `offset_z` exist so calibration maps can fix mirroring without changing protocol code.
+
+### Terrain and fluid rendering rules
+
+World State semantics determine whether an object is a `floor`, `overlay`, or `block`/wall. Minecraft materials do not have to be unique between layers: for example, a Stone floor and Stone wall may both render with `minecraft:stone` while remaining distinct semantic objects.
+
+The initial Minecraft terrain convention is:
+
+- normal surface/floor: Y=2;
+- shallow fluid: fluid at Y=2, supporting/variant bed at Y=1;
+- deep fluid: fluid at Y=2 and Y=1, supporting/variant bed at Y=0;
+- Y<0: valid space, currently left empty/reserved.
+
+The canonical state keeps the original terrain/fluid identity even when multiple Mindustry variants share the same visible Minecraft fluid material. This lets an adapter restore the correct underlying terrain later.
 
 ## Player proxy base
 
