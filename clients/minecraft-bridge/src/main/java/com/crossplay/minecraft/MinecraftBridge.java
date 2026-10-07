@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 
 public class MinecraftBridge extends JavaPlugin implements Listener {
-    private static final int MSE_Y_OFFSET = 1;
     private static final long PLAYER_SEND_INTERVAL_MS = 100L;
 
     private RelayClient relayClient;
@@ -162,8 +161,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         if (!"MC_SET_BLOCK".equals(type)) return;
 
         int x = packet.optInt("x");
-        int logicalY = packet.optInt("y", 1);
-        int y = logicalY + MSE_Y_OFFSET;
+        int y = packet.optInt("y", 2);
         int z = packet.optInt("z");
         String blockId = packet.optString("block_id", "minecraft:stone");
 
@@ -188,7 +186,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         String name = packet.optString("name", packet.optString("player", "MindustryPlayer"));
         double x = packet.optDouble("x", 0);
         double z = packet.optDouble("z", 0);
-        double y = packet.optDouble("y", 5) + MSE_Y_OFFSET;
+        double y = packet.optDouble("y", 5);
         float yaw = (float) packet.optDouble("rotation", 0);
         Location loc = new Location(Bukkit.getWorlds().get(0), x + 0.5, y, z + 0.5, yaw, 0);
 
