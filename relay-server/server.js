@@ -110,7 +110,7 @@ function objectFromMindustry(data) {
         minecraft: entry.minecraft,
         x: pos.x,
         z: pos.z,
-        y: 1,
+        y: Number(data.mse_y != null ? data.mse_y : ((WORLD_CONFIG.minecraft || {}).surface_y || 2)),
         volume: entry.volume || { x: 1, z: 1, y: 1 },
         rotation: data.rotation || 0,
         source_game: "MINDUSTRY"
@@ -211,7 +211,7 @@ function handleMinecraftBlock(data) {
         minecraft: entry.minecraft,
         x: Number(data.x),
         z: Number(data.z),
-        y: 1,
+        y: Number(data.y),
         volume: entry.volume || { x: 1, z: 1, y: 1 },
         source_game: "MINECRAFT"
     });
