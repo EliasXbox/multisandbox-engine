@@ -61,7 +61,7 @@ You need **Node.js with npm**, **Java 17 or later**, **Minecraft Java 1.20.1 wit
 
 - Download the [Minecraft plugin JAR](https://github.com/EliasXbox/multisandbox-engine/releases/download/v1.2.0/multisandboxengine-minecraft-1.2.0.jar).
 - Download the [Mindustry mod ZIP](https://github.com/EliasXbox/multisandbox-engine/releases/download/v1.2.0/multisandbox-engine-mindustry-1.2.0.zip).
-- Get the updated Relay from [this World Sync branch](https://github.com/EliasXbox/multisandbox-engine/tree/feature/world-sync-core): use **Code → Download ZIP**, extract it and find `relay-server/`. Keep all three components on this update.
+- Get the updated Relay from [the updated main branch](https://github.com/EliasXbox/multisandbox-engine/tree/main): use **Code → Download ZIP**, extract it and find `relay-server/`. Keep all three components on this update.
 
 The same tested bridge packages are also preserved in [dist/](dist/).
 
