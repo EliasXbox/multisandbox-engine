@@ -1,0 +1,8 @@
+# Local worlds, saves, backups and generated builds
+relay-server/data/
+work/
+*.bak
+**/target/
+**/build/
+**/synced-cells.txt
+node_modules/

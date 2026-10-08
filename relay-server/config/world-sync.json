@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "authority": "MINDUSTRY",
+  "minecraft": {
+    "surface_y": 2,
+    "allow_negative_y": true,
+    "target_world": "empty",
+    "fluid_rules": {
+      "shallow": {
+        "surface_y": 2,
+        "bed_y": 1
+      },
+      "deep": {
+        "surface_y": 2,
+        "fluid_y": 1,
+        "bed_y": 0
+      }
+    }
+  },
+  "mindustry_to_mse": {
+    "flip_x": false,
+    "flip_z": false,
+    "offset_x": 0,
+    "offset_z": 0
+  },
+  "notes": [
+    "Minecraft Y is now an absolute MSE rendering coordinate; the old logical Y + 1 adapter offset is retired.",
+    "Y=2 is the default Mindustry surface in Minecraft. Y=0 and negative Y remain valid for future underground systems.",
+    "The target Minecraft world should be empty so the Relay can reconstruct the Mindustry world without pre-existing terrain conflicts.",
+    "Floor and wall semantics come from the World State layer/kind, not from requiring unique Minecraft materials. A floor and a wall may intentionally share a material.",
+    "Shallow fluids render at Y=2 over a bed at Y=1. Deep fluids may also occupy Y=1 with their bed at Y=0.",
+    "Coordinate transforms are explicit so mirrored maps can be calibrated without changing protocol code.",
+    "Set flip_x or flip_z after the calibration map identifies the mirrored axis.",
+    "Snapshot authority is provisional for the Minecraft-Mindustry MVP."
+  ]
+}

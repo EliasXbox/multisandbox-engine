@@ -1,4 +1,4 @@
 name: MultiSandboxEngine
-version: 1.0.0
+version: 1.2.0-world-sync-dev2
 main: com.crossplay.minecraft.MinecraftBridge
 api-version: 1.20
