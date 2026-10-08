@@ -36,9 +36,10 @@ public class RelayClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        log("RX RAW " + message);
         try {
             JSONObject packet = new JSONObject(message);
+            String type = packet.optString("type");
+            if (!"MC_SET_BLOCK".equals(type) && !"PLAYER_STATE".equals(type)) log("RX " + packet);
             if (listener != null) {
                 listener.onPacketReceived(packet);
             } else {

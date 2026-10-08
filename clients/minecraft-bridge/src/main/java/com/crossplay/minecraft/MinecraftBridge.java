@@ -19,6 +19,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.json.JSONObject;
 
 import java.net.URI;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -32,13 +38,31 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
     private final Set<String> mseCells = new HashSet<>();
     private final Map<String, Phantom> mindustryPlayerProxies = new HashMap<>();
     private final Map<UUID, Long> lastPlayerSend = new HashMap<>();
+    private final Queue<JSONObject> worldPackets = new ConcurrentLinkedQueue<>();
+    private final Queue<String> cellsToClear = new ArrayDeque<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         try {
+            File ownership = new File(getDataFolder(), "synced-cells.txt");
+            if (ownership.isFile()) mseCells.addAll(Files.readAllLines(ownership.toPath(), StandardCharsets.UTF_8));
+        } catch (Exception e) { getLogger().warning("Could not load synced cells: " + e.getMessage()); }
+        Bukkit.getScheduler().runTaskTimer(this, this::applyWorldPackets, 1L, 1L);
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            for (org.bukkit.entity.Player player : Bukkit.getOnlinePlayers()) {
+                sendPlayer(player.getUniqueId(), player.getName(), player.getLocation());
+            }
+        }, 2L, 2L);
+        try {
             relayClient = new RelayClient(new URI("ws://localhost:8080"), "MINECRAFT", this::handleIncomingPacket);
             relayClient.connect();
+            Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+                if (relayClient != null && relayClient.isClosed()) {
+                    try { relayClient.reconnect(); }
+                    catch (Exception e) { getLogger().warning("Relay reconnect: " + e.getMessage()); }
+                }
+            }, 100L, 100L);
         } catch (Exception e) {
             getLogger().severe("[MSE-MINECRAFT] Failed to start Relay client: " + e.getMessage());
         }
@@ -46,6 +70,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        saveTrackedCells();
         for (Phantom proxy : mindustryPlayerProxies.values()) {
             if (proxy != null && proxy.isValid()) proxy.remove();
         }
@@ -53,7 +78,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         if (relayClient != null) relayClient.close();
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         if (relayClient == null) return;
         Location loc = event.getBlock().getLocation();
@@ -61,7 +86,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
                 event.getBlock().getType().name().toLowerCase(), false);
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         if (relayClient == null) return;
         Location loc = event.getBlock().getLocation();
@@ -107,22 +132,56 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
     }
 
     private void clearTrackedMseCells() {
+        cellsToClear.addAll(mseCells);
+    }
+
+    private void saveTrackedCells() {
+        try {
+            getDataFolder().mkdirs();
+            Files.write(new File(getDataFolder(), "synced-cells.txt").toPath(), mseCells, StandardCharsets.UTF_8);
+        } catch (Exception e) { getLogger().warning("Could not save synced cells: " + e.getMessage()); }
+    }
+
+    private void applyWorldPackets() {
         if (Bukkit.getWorlds().isEmpty()) return;
         World world = Bukkit.getWorlds().get(0);
-        for (String key : new HashSet<>(mseCells)) {
-            String[] parts = key.split(":");
-            if (parts.length != 3) continue;
-            try {
-                world.getBlockAt(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))
-                        .setType(Material.AIR);
-            } catch (NumberFormatException ignored) {}
+        // Bound each tick's work so full-map snapshots do not schedule thousands of tasks.
+        for (int count = 0; count < 1000; count++) {
+            if (!cellsToClear.isEmpty()) {
+                String key = cellsToClear.poll();
+                String[] parts = key.split(":");
+                if (parts.length == 3) {
+                    try {
+                        world.getBlockAt(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]))
+                                .setType(Material.AIR, false);
+                    } catch (NumberFormatException ignored) {}
+                }
+                mseCells.remove(key);
+                continue;
+            }
+            JSONObject packet = worldPackets.poll();
+            if (packet == null) break;
+            String type = packet.optString("type");
+            if ("WORLD_SNAPSHOT_BEGIN".equals(type)) { clearTrackedMseCells(); continue; }
+            if ("WORLD_SNAPSHOT_END".equals(type)) {
+                saveTrackedCells();
+                getLogger().info("[MSE] World snapshot applied: " + packet.optInt("object_count") + " objects.");
+                continue;
+            }
+            int x = packet.optInt("x"), y = packet.optInt("y", 2), z = packet.optInt("z");
+            if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
+            Material material = Material.matchMaterial(packet.optString("block_id", "minecraft:air"));
+            if (material == null) { getLogger().warning("Unknown MSE material: " + packet.optString("block_id")); continue; }
+            world.getBlockAt(x, y, z).setType(material, false);
+            String key = cellKey(x, y, z);
+            if (material == Material.AIR) mseCells.remove(key); else mseCells.add(key);
         }
-        mseCells.clear();
     }
 
     private void handleIncomingPacket(JSONObject packet) {
         String type = packet.optString("type", "UNKNOWN");
-        getLogger().info("[MSE-MINECRAFT] RX type=" + type);
+        if (!"PLAYER_STATE".equals(type) && !"MC_SET_BLOCK".equals(type))
+            getLogger().info("[MSE-MINECRAFT] RX type=" + type);
 
         if ("CONNECTED".equals(type)) return;
 
@@ -136,12 +195,12 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
         }
 
         if ("WORLD_SNAPSHOT_BEGIN".equals(type)) {
-            Bukkit.getScheduler().runTask(this, this::clearTrackedMseCells);
+            worldPackets.add(packet);
             return;
         }
 
         if ("WORLD_SNAPSHOT_END".equals(type)) {
-            getLogger().info("[MSE-MINECRAFT] World snapshot applied at revision " + packet.optLong("revision", 0));
+            worldPackets.add(packet);
             return;
         }
 
@@ -160,24 +219,7 @@ public class MinecraftBridge extends JavaPlugin implements Listener {
 
         if (!"MC_SET_BLOCK".equals(type)) return;
 
-        int x = packet.optInt("x");
-        int y = packet.optInt("y", 2);
-        int z = packet.optInt("z");
-        String blockId = packet.optString("block_id", "minecraft:stone");
-
-        Bukkit.getScheduler().runTask(this, () -> {
-            if (Bukkit.getWorlds().isEmpty()) return;
-            Material mat = Material.matchMaterial(blockId);
-            if (mat == null) {
-                getLogger().warning("[MSE-MINECRAFT] Unknown material " + blockId + "; using STONE.");
-                mat = Material.STONE;
-            }
-
-            Bukkit.getWorlds().get(0).getBlockAt(x, y, z).setType(mat);
-            String key = cellKey(x, y, z);
-            if (mat == Material.AIR) mseCells.remove(key);
-            else mseCells.add(key);
-        });
+        worldPackets.add(packet);
     }
 
     private void applyMindustryPlayerProxy(JSONObject packet) {

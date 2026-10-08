@@ -26,7 +26,9 @@ class WorldState {
             layer: spec.layer || "block",
             mindustry: spec.mindustry || null,
             minecraft: spec.minecraft || null,
-            origin: { x: Number(spec.x), z: Number(spec.z), y: Number(spec.y || 1) },
+            origin: { x: Number(spec.x), z: Number(spec.z), y: Number(spec.y == null ? 1 : spec.y) },
+            mindustry_anchor: spec.mindustry_anchor || null,
+            fluidDepth: Number(spec.fluidDepth || 0),
             volume: { x: Number(volume.x || 1), z: Number(volume.z || 1), y: Number(volume.y || 1) },
             rotation: Number(spec.rotation || 0),
             source_game: spec.source_game || "UNKNOWN",
@@ -91,7 +93,6 @@ class WorldState {
         this.snapshot = null;
         this.objects.clear();
         this.cells.clear();
-        this.nextObjectId = 1;
         this.meta = { ...this.meta, ...pending.meta };
         const created = pending.objects.map(obj => this.createObject(obj));
         return { revision: this.revision, objects: created, meta: this.meta };

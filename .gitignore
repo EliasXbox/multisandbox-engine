@@ -1,1 +1,8 @@
-# Runtime MSE world-state persistence\nrelay-server/data/world-state.json\nrelay-server/data/world-state.json.tmp\n
+# Local worlds, saves, backups and generated builds
+relay-server/data/
+work/
+*.bak
+**/target/
+**/build/
+**/synced-cells.txt
+node_modules/

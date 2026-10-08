@@ -45,7 +45,7 @@ Canonical order is `X × Z × Y`.
 
 Minecraft uses X/Z directly and MSE Y as an absolute rendering coordinate. The temporary `logical Y + 1` adapter offset has been retired.
 
-The default Mindustry surface is rendered at Minecraft Y=2. Y=0 is not a floor or world boundary: Y=0 and negative Y remain valid MSE/Minecraft space reserved for future underground gameplay. The Minecraft target world for an authoritative Mindustry snapshot should therefore start empty; the Relay reconstructs the synchronized terrain instead of layering it over a superflat preset.
+The default Mindustry terrain surface is rendered at Minecraft Y=2; structures begin at Y=3. Y=0 is not a floor or world boundary: Y=0 and negative Y remain valid MSE/Minecraft space reserved for future underground gameplay. The Minecraft target world for an authoritative Mindustry snapshot should therefore start empty; the Relay reconstructs the synchronized terrain instead of layering it over a superflat preset.
 
 Mindustry uses its tile X/Y plane as MSE X/Z through the transform in `relay-server/config/world-sync.json`. `flip_x`, `flip_z`, `offset_x`, and `offset_z` exist so calibration maps can fix mirroring without changing protocol code.
 
@@ -92,3 +92,8 @@ The World Sync registry now includes the essential production/power blocks that 
 - Power Node Large → `minecraft:end_rod`, semantic footprint `2×2`.
 
 The large Power Node is marked as a template candidate. The current generic renderer may fill its 2×2 footprint with End Rods; a later Minecraft adapter renderer can use a sparse visual template without changing the semantic object footprint.
+
+
+## World Sync dev2
+
+Building anchor tiles are distinct from minimum volume corners. The Relay keeps both for reversible multi-tile placement/deletion. Snapshots now collect floors, overlays, fluids, scenery and buildings, including provisional visuals for unmapped content. Player visuals interpolate in Mindustry and use converted headings. See [World Sync dev2](world-sync-dev2.md) for the tested update, campaign compatibility, packages and current limits.

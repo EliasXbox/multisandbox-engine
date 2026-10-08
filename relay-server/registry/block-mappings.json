@@ -1,212 +1,275 @@
 {
-  "schema_version": 2,
-  "dimension_order": "XZY",
-  "notes": [
-    "Mappings are one-to-one whenever possible so reverse translation is deterministic.",
-    "volume uses MSE X x Z x Y ordering.",
-    "Minecraft Y is an absolute MSE rendering coordinate in World Sync; the default Mindustry surface is Y=2.",
-    "Floor and wall semantics may share a Minecraft material because World State layer/kind disambiguates them."
-  ],
-  "mappings": [
-    {
-      "mindustry": "conveyor",
-      "minecraft": "minecraft:stone_slab",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "titanium-conveyor",
-      "minecraft": "minecraft:sandstone_slab",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "armored-conveyor",
-      "minecraft": "minecraft:nether_brick_slab",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "plastanium-conveyor",
-      "minecraft": "minecraft:purpur_slab",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "junction",
-      "minecraft": "minecraft:chiseled_stone_bricks",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "router",
-      "minecraft": "minecraft:cobblestone",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "distributor",
-      "minecraft": "minecraft:chiseled_polished_blackstone",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "sorter",
-      "minecraft": "minecraft:smooth_stone",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "inverted-sorter",
-      "minecraft": "minecraft:mossy_stone_bricks",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "overflow-gate",
-      "minecraft": "minecraft:lodestone",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "underflow-gate",
-      "minecraft": "minecraft:mossy_cobblestone",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "mass-driver",
-      "minecraft": "minecraft:bamboo_planks",
-      "volume": {
-        "x": 2,
-        "z": 2,
-        "y": 2
-      }
-    },
-    {
-      "mindustry": "mechanical-drill",
-      "minecraft": "minecraft:acacia_planks",
-      "volume": {
-        "x": 2,
-        "z": 2,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "pneumatic-drill",
-      "minecraft": "minecraft:iron_block",
-      "volume": {
-        "x": 2,
-        "z": 2,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "laser-drill",
-      "minecraft": "minecraft:purpur_block",
-      "volume": {
-        "x": 3,
-        "z": 3,
-        "y": 2
-      }
-    },
-    {
-      "mindustry": "blast-drill",
-      "minecraft": "minecraft:end_stone_bricks",
-      "volume": {
-        "x": 4,
-        "z": 4,
-        "y": 3
-      }
-    },
-    {
-      "mindustry": "combustion-generator",
-      "minecraft": "minecraft:blast_furnace",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "kiln",
-      "minecraft": "minecraft:furnace",
-      "volume": {
-        "x": 2,
-        "z": 2,
-        "y": 2
-      }
-    },
-    {
-      "mindustry": "power-node",
-      "minecraft": "minecraft:lightning_rod",
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 1
-      }
-    },
-    {
-      "mindustry": "power-node-large",
-      "minecraft": "minecraft:end_rod",
-      "volume": {
-        "x": 2,
-        "z": 2,
-        "y": 1
-      },
-      "render": {
-        "mode": "template_candidate",
-        "note": "Semantic footprint is 2x2; current fallback renderer fills the footprint until a sparse End Rod template is implemented."
-      }
-    }
-  ],
-  "presets": {
-    "environment_wall": {
-      "volume": {
-        "x": 1,
-        "z": 1,
-        "y": 4
-      },
-      "status": "minecraft-materials-pending"
-    },
-    "height_convention": {
-      "1": "primary placeable layer",
-      "2": "secondary placeable/structure layer",
-      "5": "default Mindustry player/flying-unit logical height",
-      "3-4": "tall wall/structure layers"
-    }
-  }
+    "schema_version":  2,
+    "dimension_order":  "XZY",
+    "notes":  [
+                  "Mappings are one-to-one whenever possible so reverse translation is deterministic.",
+                  "volume uses MSE X x Z x Y ordering.",
+                  "Minecraft Y is an absolute MSE rendering coordinate in World Sync; the default Mindustry surface is Y=2.",
+                  "Floor and wall semantics may share a Minecraft material because World State layer/kind disambiguates them."
+              ],
+    "mappings":  [
+                     {
+                         "mindustry":  "conveyor",
+                         "minecraft":  "minecraft:stone_slab",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "titanium-conveyor",
+                         "minecraft":  "minecraft:sandstone_slab",
+                         "minecraft_aliases":  [
+                                                   "minecraft:smooth_sandstone_slab"
+                                               ],
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "armored-conveyor",
+                         "minecraft":  "minecraft:nether_brick_slab",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "plastanium-conveyor",
+                         "minecraft":  "minecraft:purpur_slab",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "junction",
+                         "minecraft":  "minecraft:chiseled_stone_bricks",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "router",
+                         "minecraft":  "minecraft:cobblestone",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "distributor",
+                         "minecraft":  "minecraft:chiseled_polished_blackstone",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "sorter",
+                         "minecraft":  "minecraft:smooth_stone",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "inverted-sorter",
+                         "minecraft":  "minecraft:mossy_stone_bricks",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "overflow-gate",
+                         "minecraft":  "minecraft:lodestone",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "underflow-gate",
+                         "minecraft":  "minecraft:mossy_cobblestone",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "mass-driver",
+                         "minecraft":  "minecraft:bamboo_planks",
+                         "volume":  {
+                                        "x":  3,
+                                        "z":  3,
+                                        "y":  2
+                                    }
+                     },
+                     {
+                         "mindustry":  "mechanical-drill",
+                         "minecraft":  "minecraft:acacia_planks",
+                         "volume":  {
+                                        "x":  2,
+                                        "z":  2,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "pneumatic-drill",
+                         "minecraft":  "minecraft:iron_block",
+                         "volume":  {
+                                        "x":  2,
+                                        "z":  2,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "laser-drill",
+                         "minecraft":  "minecraft:purpur_block",
+                         "volume":  {
+                                        "x":  3,
+                                        "z":  3,
+                                        "y":  2
+                                    }
+                     },
+                     {
+                         "mindustry":  "blast-drill",
+                         "minecraft":  "minecraft:end_stone_bricks",
+                         "volume":  {
+                                        "x":  4,
+                                        "z":  4,
+                                        "y":  3
+                                    }
+                     },
+                     {
+                         "mindustry":  "combustion-generator",
+                         "minecraft":  "minecraft:blast_furnace",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "kiln",
+                         "minecraft":  "minecraft:furnace",
+                         "volume":  {
+                                        "x":  2,
+                                        "z":  2,
+                                        "y":  2
+                                    }
+                     },
+                     {
+                         "mindustry":  "power-node",
+                         "minecraft":  "minecraft:lightning_rod",
+                         "volume":  {
+                                        "x":  1,
+                                        "z":  1,
+                                        "y":  1
+                                    }
+                     },
+                     {
+                         "mindustry":  "power-node-large",
+                         "minecraft":  "minecraft:end_rod",
+                         "volume":  {
+                                        "x":  2,
+                                        "z":  2,
+                                        "y":  1
+                                    },
+                         "render":  {
+                                        "mode":  "template_candidate",
+                                        "note":  "Semantic footprint is 2x2; current fallback renderer fills the footprint until a sparse End Rod template is implemented."
+                                    }
+                     },
+                     {
+                         "mindustry":  "core-shard",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  3,
+                                        "z":  3,
+                                        "y":  2
+                                    },
+                         "reverse":  true
+                     },
+                     {
+                         "mindustry":  "core-foundation",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  4,
+                                        "z":  4,
+                                        "y":  2
+                                    },
+                         "reverse":  false
+                     },
+                     {
+                         "mindustry":  "core-nucleus",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  5,
+                                        "z":  5,
+                                        "y":  2
+                                    },
+                         "reverse":  false
+                     },
+                     {
+                         "mindustry":  "core-bastion",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  4,
+                                        "z":  4,
+                                        "y":  2
+                                    },
+                         "reverse":  false
+                     },
+                     {
+                         "mindustry":  "core-citadel",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  5,
+                                        "z":  5,
+                                        "y":  2
+                                    },
+                         "reverse":  false
+                     },
+                     {
+                         "mindustry":  "core-acropolis",
+                         "minecraft":  "minecraft:yellow_terracotta",
+                         "volume":  {
+                                        "x":  6,
+                                        "z":  6,
+                                        "y":  2
+                                    },
+                         "reverse":  false
+                     }
+                 ],
+    "presets":  {
+                    "environment_wall":  {
+                                             "volume":  {
+                                                            "x":  1,
+                                                            "z":  1,
+                                                            "y":  4
+                                                        },
+                                             "status":  "minecraft-materials-pending"
+                                         },
+                    "height_convention":  {
+                                              "1":  "primary placeable layer",
+                                              "2":  "secondary placeable/structure layer",
+                                              "5":  "default Mindustry player/flying-unit logical height",
+                                              "3-4":  "tall wall/structure layers"
+                                          }
+                }
 }
