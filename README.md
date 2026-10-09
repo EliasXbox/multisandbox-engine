@@ -8,6 +8,8 @@ Multi-Sandbox Engine connects games through a central Relay and game-specific br
 
 **[Installation tutorial](docs/installation.md) · [Survival guide](docs/survival-foundation.md) · [Release notes](docs/releases/v1.3.0.md)**
 
+> **Online multiplayer status:** v1.3.0 was tested with the Mindustry host, Purpur server and Relay on the same computer. Sessions with friends over the Internet or a VPN, multiple Mindustry players and components running on separate computers **have not been validated**. Do not treat this release as confirmed support for those setups. See [Playing with friends / online multiplayer](#playing-with-friends--online-multiplayer).
+
 ## What works
 
 - World reconstruction for **Serpulo and Erekir**: floors, ore overlays, liquids, natural walls and buildings.
@@ -39,6 +41,14 @@ The tested setup uses **Minecraft Java 1.20.1 with Purpur, Mindustry 160.4, Java
 **The Purpur server's primary world must be 100% empty and dedicated to MSE.** Existing Minecraft terrain conflicts with map reconstruction. Back up saves and stop the games/Relay before replacing components. Follow the [tutorial](docs/installation.md) to create a new void world without deleting an existing save.
 
 Mindustry is the world authority. Load a map in the Mindustry instance running the mod, then join Minecraft and wait for **Core area ready**. The rest of a large map can continue loading in the background.
+
+## Playing with friends / online multiplayer
+
+**Online multiplayer with friends is experimental and has not been validated for v1.3.0.** The published gameplay tests cover a local Minecraft–Mindustry session, not a complete multiplayer session over the Internet. In particular, multiple Mindustry players and their cross-game proxies, shared health and inventory interactions still need multiplayer testing.
+
+The default architecture keeps the Mindustry host, Purpur server and Relay on one computer, where the bridges use `localhost:8080`. A remote Minecraft player would connect to the host's reachable server address rather than `localhost:25565`. A VPN can provide a private network path between friends, but **it does not validate MSE's multiplayer behavior** and is not an inherent requirement of the engine.
+
+Running a bridge on another computer requires changing its Relay endpoint; the current endpoints are hardcoded. This release does not provide a tested distributed-setup tutorial. If you experiment with an online or VPN session, back up saves and report your setup and results rather than assuming full multiplayer compatibility.
 
 ## Campaign compatibility
 
