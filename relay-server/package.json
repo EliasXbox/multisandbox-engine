@@ -1,7 +1,7 @@
 {
   "name": "mse-relay-server",
-  "version": "1.0.0",
-  "description": "Servidor central de roteamento do Multi-Sandbox Engine (MSE)",
+  "version": "1.3.0",
+  "description": "Central Relay for Multi-Sandbox Engine (MSE)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

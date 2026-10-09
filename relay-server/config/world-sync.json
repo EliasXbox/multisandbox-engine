@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "map_overrides": {},
   "authority": "MINDUSTRY",
   "minecraft": {
     "surface_y": 2,
@@ -19,7 +20,7 @@
   },
   "mindustry_to_mse": {
     "flip_x": false,
-    "flip_z": false,
+    "flip_z": true,
     "offset_x": 0,
     "offset_z": 0
   },

@@ -2,7 +2,7 @@
   "name": "multisandboxengine-mindustry",
   "displayName": "Multi-Sandbox Engine (MSE)",
   "author": "EliasGX",
-  "description": "Ponte oficial JS do Mindustry para o Multi-Sandbox Engine Relay. World Sync experimental.",
-  "version": "1.2.0-world-sync-dev2",
-  "minGameVersion": "145"
+  "description": "Minecraft crossplay bridge for Multi-Sandbox Engine. Survival Foundation Update: world sync, shared combat, resources and building interactions.",
+  "version": "1.3.0",
+  "minGameVersion": "160"
 }
