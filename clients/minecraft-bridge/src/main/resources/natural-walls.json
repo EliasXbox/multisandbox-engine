@@ -1,0 +1,446 @@
+{
+  "mappings": [
+    {
+      "mindustry": "stone-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "spore-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Spore Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "dirt-wall",
+      "minecraft": "minecraft:dirt",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Dirt Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "dacite-wall",
+      "minecraft": "minecraft:diorite",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Dacite Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "ice-wall",
+      "minecraft": "minecraft:packed_ice",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Ice Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "snow-wall",
+      "minecraft": "minecraft:snow_block",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Snow Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "dune-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Dune Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "regolith-wall",
+      "minecraft": "minecraft:brown_terracotta",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Regolith Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "yellow-stone-wall",
+      "minecraft": "minecraft:yellow_terracotta",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Yellow Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "rhyolite-wall",
+      "minecraft": "minecraft:granite",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Rhyolite Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "carbon-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Carbon Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "ferric-stone-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Ferric Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "beryllic-stone-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Beryllic Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "arkyic-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Arkyic Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "crystalline-stone-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Crystalline Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "red-ice-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Red Ice Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "red-stone-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Red Stone Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "red-diamond-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Red Diamond Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "sand-wall",
+      "minecraft": "minecraft:sandstone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Sand Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "salt-wall",
+      "minecraft": "minecraft:white_concrete",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Salt Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "shale-wall",
+      "minecraft": "minecraft:deepslate",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Shale Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "metal-wall-1",
+      "minecraft": "minecraft:black_terracotta",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Metal Wall 1",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "metal-wall-2",
+      "minecraft": "minecraft:black_terracotta",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Metal Wall 2",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "metal-wall-3",
+      "minecraft": "minecraft:black_terracotta",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Metal Wall 3",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "colored-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Colored Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    },
+    {
+      "mindustry": "graphitic-wall",
+      "minecraft": "minecraft:stone",
+      "volume": {
+        "x": 1,
+        "z": 1,
+        "y": 4
+      },
+      "fluidDepth": 0,
+      "reverse": false,
+      "label": "Graphitic Wall",
+      "natural_wall": true,
+      "env_enabled": 1,
+      "env_disabled": 0,
+      "env_required": 0,
+      "requirements": []
+    }
+  ]
+}

@@ -4,6 +4,11 @@ const path = require("path");
 const WebSocket = require("ws");
 const WorldState = require("./world-state");
 const Mappings = require("./mappings");
+const Survival = require("./survival");
+const MinecraftStream = require("./minecraft-stream");
+const WorldStore = require("./world-store");
+const Combat = require('./combat');
+const BuildingInventory = require('./building-inventory');
 const WORLD_CONFIG = require("./config/world-sync.json");
 
 const world = new WorldState();
@@ -11,16 +16,14 @@ const STATE_FILE = path.join(__dirname, "data", "world-state.json");
 const deferredDuringSnapshot = [];
 const relaySession = String(Date.now());
 let lastMindustryPoll = 0;
+const minecraftStreams = new Map();
+const worldStore = new WorldStore(fs, STATE_FILE, () => world.exportData());
+const combat = new Combat(world, sendTo, enqueue, mindustryToMse, rotation =>
+    Mappings.normalizeAngle(Mappings.transformAngle(Number(rotation || 0), world.meta.transform || WORLD_CONFIG.mindustry_to_mse) - 90));
+const buildingInventory = new BuildingInventory(world, sendTo, enqueue);
 
 function persistWorld() {
-    try {
-        fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-        const temp = STATE_FILE + ".tmp";
-        fs.writeFileSync(temp, JSON.stringify(world.exportData(), null, 2));
-        fs.renameSync(temp, STATE_FILE);
-    } catch (err) {
-        console.error("[MSE] Could not persist world state:", err.message);
-    }
+    worldStore.markDirty();
 }
 
 function loadPersistedWorld() {
@@ -58,6 +61,8 @@ function enqueue(targetGame, payload) {
 function sendTo(targetGame, payload) {
     const socket = clients.get(String(targetGame).toUpperCase());
     if (socket && socket.readyState === WebSocket.OPEN) {
+        const stream = minecraftStreams.get(socket);
+        if (stream && payload.type === 'MC_SET_BLOCK') { stream.enqueue(payload); return true; }
         socket.send(JSON.stringify(payload));
         return true;
     }
@@ -73,7 +78,7 @@ function broadcast(payload, exceptSocket = null) {
 }
 
 function mindustryToMse(rawX, rawY, meta = world.meta) {
-    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const cfg = meta.transform || WORLD_CONFIG.mindustry_to_mse || {};
     const width = Number(meta.width || 0);
     const height = Number(meta.height || 0);
     let x = Number(rawX);
@@ -89,7 +94,7 @@ function mindustryToMse(rawX, rawY, meta = world.meta) {
 }
 
 function mseToMindustry(rawX, rawZ) {
-    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const cfg = world.meta.transform || WORLD_CONFIG.mindustry_to_mse || {};
     const width = Number(world.meta.width || 0);
     const height = Number(world.meta.height || 0);
     let x = Number(rawX) - Number(cfg.offset_x || 0);
@@ -123,18 +128,20 @@ function objectFromMindustry(data) {
         y: Number(data.mse_y != null ? data.mse_y : layer === 'block' ? surface + 1 : surface),
         volume,
         fluidDepth: entry.fluidDepth || 0,
+        inventory: data.has_items === true,
+        team: data.team,
         mindustry_anchor: { x: Number(data.x), y: Number(data.y) },
         rotation: data.rotation || 0,
         source_game: "MINDUSTRY"
     };
 }
 
-function renderObjectToMinecraft(object, material = null) {
+function* minecraftObjectPackets(object, material = null) {
     const blockId = material || object.minecraft || "minecraft:air";
     for (let dx = 0; dx < object.volume.x; dx++) {
         for (let dz = 0; dz < object.volume.z; dz++) {
             for (let dy = 0; dy < object.volume.y; dy++) {
-                sendTo("MINECRAFT", {
+                yield {
                     type: "MC_SET_BLOCK",
                     source_game: "MSE",
                     object_id: object.id,
@@ -143,9 +150,17 @@ function renderObjectToMinecraft(object, material = null) {
                     z: object.origin.z + dz,
                     y: object.origin.y + dy,
                     block_id: blockId,
+                    facing: Mappings.normalizeAngle(Mappings.transformAngle(object.rotation * 90,
+                        world.meta.transform || WORLD_CONFIG.mindustry_to_mse)),
+                    ...Survival.cellMetadata(object),
                     mse_origin: object.origin,
                     mse_volume: object.volume
-                });
+                    ,mindustry_anchor: object.mindustry_anchor,
+                    has_items: object.inventory,
+                    natural_wall: Mappings.naturalWalls.has(object.mindustry) && object.layer === 'block',
+                    configuration: Mappings.blocks.get(object.mindustry)?.configuration || null,
+                    team: object.team
+                };
             }
         }
     }
@@ -153,11 +168,17 @@ function renderObjectToMinecraft(object, material = null) {
         // Bed first, then fluid; the adapter suppresses Minecraft physics.
         const surface = object.origin.y;
         for (let depth = object.fluidDepth; depth >= 1; depth--) {
-            sendTo('MINECRAFT', { type: 'MC_SET_BLOCK', source_game: 'MSE',
+            yield { type: 'MC_SET_BLOCK', source_game: 'MSE', revision: object.revision,
                 x: object.origin.x, z: object.origin.z, y: surface - depth,
-                block_id: material || (depth === object.fluidDepth ? 'minecraft:stone' : object.minecraft) });
+                mindustry_block: object.mindustry, mse_layer: object.layer,
+                survival_resource: null, survival_protected: true,
+                block_id: material || (depth === object.fluidDepth ? 'minecraft:stone' : object.minecraft) };
         }
     }
+}
+
+function renderObjectToMinecraft(object, material = null) {
+    for (const packet of minecraftObjectPackets(object, material)) sendTo('MINECRAFT', packet);
 }
 
 function sendObjectToMindustry(object, blockId = null) {
@@ -172,6 +193,7 @@ function sendObjectToMindustry(object, blockId = null) {
         block_id: blockId || object.mindustry || "air",
         rotation: object.rotation || 0,
         mse_volume: object.volume
+        ,world_epoch: world.meta.world_epoch
     });
 }
 
@@ -237,14 +259,16 @@ function handleMindustryBlock(data) {
 function handleMinecraftBlock(data) {
     if (world.snapshot) { deferredDuringSnapshot.push({ ...data }); return; }
     const minecraftBlock = String(data.block_id || data.block || "AIR").replace(/^minecraft:/i, "").toUpperCase();
-    const entry = Mappings.reverse.get(minecraftBlock);
+    const explicit = data.mindustry_block && (Mappings.blocks.get(String(data.mindustry_block)) || Mappings.naturalWalls.get(String(data.mindustry_block)));
+    const entry = explicit && [explicit.minecraft, ...(explicit.minecraft_aliases || [])]
+        .some(name => name.replace(/^minecraft:/, '').toUpperCase() === minecraftBlock) ? explicit : Mappings.reverse.get(minecraftBlock);
     if (!entry) {
         console.warn(`[MSE] UNMAPPED Minecraft block: ${minecraftBlock}; skipped.`);
         return;
     }
 
     const volume = entry.volume || { x: 1, z: 1, y: 1 };
-    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const cfg = world.meta.transform || WORLD_CONFIG.mindustry_to_mse || {};
     const corner = mseToMindustry(Number(data.x) + (cfg.flip_x ? volume.x - 1 : 0),
         Number(data.z) + (cfg.flip_z ? volume.z - 1 : 0));
     const offset = Math.floor((volume.x - 1) / 2);
@@ -257,6 +281,8 @@ function handleMinecraftBlock(data) {
         z: Number(data.z),
         y: Number(data.y),
         volume,
+        rotation: Math.round(Mappings.transformAngle(Number(data.facing || 0), cfg) / 90) % 4,
+        inventory: entry.has_items === true,
         mindustry_anchor: { x: corner.x + offset, y: corner.y + offset },
         source_game: "MINECRAFT"
     }, "MINECRAFT");
@@ -273,6 +299,10 @@ function handleMinecraftBreak(data) {
         return;
     }
     publishRemove(removed, "MINECRAFT");
+    if (data.refund === true && data.player_id && (Mappings.blocks.has(removed.mindustry) || Mappings.naturalWalls.has(removed.mindustry))) {
+        sendTo('MINECRAFT', { type: 'BUILDING_REFUND', player_id: data.player_id,
+            mindustry_block: removed.mindustry, object_id: removed.id, world_epoch: world.meta.world_epoch });
+    }
     persistWorld();
 }
 
@@ -281,12 +311,30 @@ function handleSnapshotBegin(data) {
         console.warn("[MSE] Snapshot rejected: source is not current authority.");
         return;
     }
+    if (data.world_epoch && Number(data.world_epoch) < Number(world.meta.world_epoch || 0)) return;
+    if (world.snapshot && data.world_epoch && Number(data.world_epoch) < Number(world.snapshot.meta.world_epoch || 0)) return;
+    const mapChanged = data.world_epoch && Number(data.world_epoch) !== Number(world.meta.world_epoch || 0);
+    if (mapChanged) {
+        deferredDuringSnapshot.length = 0;
+        httpQueues.set('MINDUSTRY', []);
+        world.players.clear();
+        const stream = minecraftStreams.get(clients.get('MINECRAFT'));
+        if (stream) stream.start((function* () { yield { type: 'WORLD_MAP_CLEAR', world_epoch: data.world_epoch }; })());
+    }
+    const overrides = (WORLD_CONFIG.map_overrides || {})[String(data.map_id || '')] || {};
     world.beginSnapshot({
         width: Number(data.width || 0) || null,
         height: Number(data.height || 0) || null,
         authority: String(data.source_game || data.game).toUpperCase(),
         snapshot_id: data.snapshot_id || null
+        ,world_epoch: data.world_epoch || null,
+        map_id: data.map_id || null,
+        map_name: data.map_name || null,
+        environment: data.environment || 1,
+        planet: data.planet || null,
+        transform: { ...(WORLD_CONFIG.mindustry_to_mse || {}), ...overrides }
     });
+    if(data.spawn) world.snapshot.meta.spawn = mindustryToMse(Number(data.spawn.x), Number(data.spawn.y), world.snapshot.meta);
     console.log(`[MSE][SNAPSHOT] BEGIN ${data.snapshot_id || ""} ${data.width || "?"}x${data.height || "?"}`);
 }
 
@@ -307,6 +355,32 @@ function validSnapshotPacket(data) {
 }
 
 function sendSnapshotToMinecraft(previousObjects = []) {
+    const socket = clients.get('MINECRAFT');
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const stream = minecraftStreams.get(socket);
+    if (stream) {
+        const objects = Array.from(world.objects.values());
+        const revision = world.revision;
+        const meta = { ...world.meta };
+        const nearSpawn = object => meta.spawn &&
+            object.origin.x + object.volume.x >= meta.spawn.x - 32 && object.origin.x <= meta.spawn.x + 32 &&
+            object.origin.z + object.volume.z >= meta.spawn.z - 32 && object.origin.z <= meta.spawn.z + 32;
+        function* snapshotPackets() {
+            yield { type: 'WORLD_SNAPSHOT_BEGIN', revision, meta };
+            // Complete the playable core area before filling distant terrain on large maps.
+            for (const priority of [true, false]) {
+                for (const layer of ['floor', 'overlay', 'block']) {
+                    for (const object of objects) {
+                        if (object.layer === layer && !!nearSpawn(object) === priority) yield* minecraftObjectPackets(object);
+                    }
+                }
+                if (priority && meta.spawn) yield { type: 'WORLD_PLAY_AREA_READY', world_epoch: meta.world_epoch };
+            }
+            yield { type: 'WORLD_SNAPSHOT_END', revision, object_count: objects.length };
+        }
+        stream.start(snapshotPackets());
+        return;
+    }
     sendTo("MINECRAFT", { type: "WORLD_SNAPSHOT_BEGIN", revision: world.revision, meta: world.meta });
     // Clear cells owned by the old canonical state, including prior adapter versions.
     for (const object of previousObjects) renderObjectToMinecraft(object, 'minecraft:air');
@@ -320,14 +394,13 @@ function sendSnapshotToMinecraft(previousObjects = []) {
 
 function handleSnapshotEnd(data) {
     if (!validSnapshotPacket(data)) return;
-    const previousObjects = Array.from(world.objects.values());
     const committed = world.commitSnapshot();
     console.log(`[MSE][SNAPSHOT] COMMIT r${committed.revision}: ${committed.objects.length} objects`);
     while (deferredDuringSnapshot.length > 0) {
         handlePacket(deferredDuringSnapshot.shift());
     }
     persistWorld();
-    sendSnapshotToMinecraft(previousObjects);
+    sendSnapshotToMinecraft();
 }
 
 function handlePlayerState(data) {
@@ -338,7 +411,7 @@ function handlePlayerState(data) {
         x = pos.x; z = pos.z;
     }
 
-    const cfg = WORLD_CONFIG.mindustry_to_mse || {};
+    const cfg = world.meta.transform || WORLD_CONFIG.mindustry_to_mse || {};
     const rotation = sourceGame === 'MINDUSTRY' ? Mappings.transformAngle(Number(data.rotation || 0), cfg) :
         Mappings.normalizeAngle(Number(data.rotation || 0) + 90);
     const player = world.setPlayer({
@@ -349,9 +422,15 @@ function handlePlayerState(data) {
         y: data.mse_y == null ? 5 : data.mse_y,
         rotation,
         connected: true
+        ,health_fraction: data.health_fraction,
+        life_id: data.life_id,
+        unit_id: data.unit_id,
+        team: data.team,
+        creative: data.creative,
+        armor: data.armor, toughness: data.toughness, protection: data.protection
     });
 
-    const packet = { type: "PLAYER_STATE", ...player };
+    const packet = { type: "PLAYER_STATE", ...player, world_epoch: world.meta.world_epoch };
     if (sourceGame === "MINDUSTRY") sendTo("MINECRAFT", { ...packet,
         rotation: Mappings.normalizeAngle(player.rotation - 90) });
     else if (sourceGame === "MINECRAFT") {
@@ -391,15 +470,45 @@ function handleChat(data, sourceGame, sourceSocket = null) {
 function handlePacket(data, ws = null) {
     const packetType = normalizeType(data);
     const sourceGame = String(data.game || data.source_game || "").toUpperCase();
+    if (packetType === 'BUILDING_INVENTORY_REQUEST' && sourceGame === 'MINECRAFT') return buildingInventory.request(data);
+    if (packetType === 'BUILDING_INVENTORY_RESULT' && sourceGame === 'MINDUSTRY') return buildingInventory.result(data);
+    if (packetType === 'BUILDING_CONFIGURE' && sourceGame === 'MINECRAFT') return buildingInventory.configure(data);
+    const currentEpoch = world.snapshot ? world.snapshot.meta.world_epoch : world.meta.world_epoch;
+    if (!String(packetType).startsWith('WORLD_SNAPSHOT') && data.world_epoch && currentEpoch &&
+        Number(data.world_epoch) !== Number(currentEpoch)) return;
 
     if (packetType === "CONNECT") {
         if (!sourceGame || !ws) return;
+        if (sourceGame === 'MINECRAFT') {
+            if (data.world_stream !== 1) {
+                ws.close(1008, 'Update the Minecraft bridge: world-stream-v1 required');
+                return;
+            }
+            const previous = clients.get(sourceGame);
+            if (previous && previous !== ws) {
+                minecraftStreams.get(previous)?.close();
+                minecraftStreams.delete(previous);
+                previous.close(1000, 'Replaced connection');
+            }
+            minecraftStreams.set(ws, new MinecraftStream(ws, { maxInflight: 3, resnapshot: sendSnapshotToMinecraft }));
+        }
         clients.set(sourceGame, ws);
         ws.mseGame = sourceGame;
         ws.send(JSON.stringify({ type: "CONNECTED", game: sourceGame, status: "ok", world: world.summary() }));
         if (sourceGame === "MINECRAFT" && world.objects.size > 0) sendSnapshotToMinecraft();
+        else if (sourceGame === 'MINECRAFT') ws.send(JSON.stringify({ type: 'WORLD_STREAM_RESET',
+            stream_id: minecraftStreams.get(ws).streamId }));
         return;
     }
+
+    if (packetType === 'WORLD_BATCH_ACK' && sourceGame === 'MINECRAFT') {
+        minecraftStreams.get(ws)?.ack(Number(data.stream_id), Number(data.batch_id));
+        return;
+    }
+    if (world.snapshot && ['ENTITY_FRAME', 'ENTITY_DAMAGE', 'PLAYER_HEALTH_DELTA', 'PLAYER_STATE'].includes(packetType)) return;
+    if (packetType === 'ENTITY_FRAME' && sourceGame === 'MINDUSTRY') return combat.frame(data);
+    if (packetType === 'ENTITY_DAMAGE' && sourceGame === 'MINECRAFT') return combat.hit(data);
+    if (packetType === 'PLAYER_HEALTH_DELTA' && sourceGame === 'MINECRAFT') return combat.localHealth(data);
 
     if (packetType === "PLACE_BLOCK") {
         if (sourceGame === "MINDUSTRY") handleMindustryBlock(data);
@@ -454,6 +563,12 @@ const server = http.createServer((req, res) => {
             registeredGames: Array.from(new Set([...clients.keys(),
                 ...(lastMindustryPoll && Date.now() - lastMindustryPoll < 3000 ? ['MINDUSTRY'] : [])])),
             queuedMindustryEvents: (httpQueues.get("MINDUSTRY") || []).length,
+            minecraftTransfer: (() => {
+                const stream = minecraftStreams.get(clients.get('MINECRAFT'));
+                return stream ? { stream_id: stream.streamId, queued_edits: stream.deltas.size,
+                    awaiting_ack: !!stream.pending, snapshot_active: !!stream.snapshot,
+                    max_batch: stream.stats.peakPending, sent_operations: stream.stats.cells } : null;
+            })(),
             world: world.summary()
         }));
         return;
@@ -477,11 +592,29 @@ wss.on("connection", ws => {
         catch (err) { console.error("[MSE] WebSocket processing error:", err); }
     });
     ws.on("close", () => {
+        minecraftStreams.get(ws)?.close();
+        minecraftStreams.delete(ws);
         if (ws.mseGame && clients.get(ws.mseGame) === ws) clients.delete(ws.mseGame);
     });
+    ws.on('error', err => console.error('[MSE] WebSocket error:', err.message));
 });
 
 server.listen(8080, () => {
     console.log("[Relay Server] MSE World Sync Core listening on :8080");
     console.log("[Relay Server] GET /health for state summary; GET /world for debug state.");
 });
+
+if (typeof process !== 'undefined') {
+    let stopping = false;
+    async function shutdown() {
+        if (stopping) return;
+        stopping = true;
+        server.close();
+        for (const stream of minecraftStreams.values()) stream.close();
+        for (const socket of wss.clients) socket.close(1001, 'Relay shutdown');
+        await worldStore.close();
+        process.exit(worldStore.dirty ? 1 : 0);
+    }
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+}

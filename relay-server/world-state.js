@@ -29,6 +29,8 @@ class WorldState {
             origin: { x: Number(spec.x), z: Number(spec.z), y: Number(spec.y == null ? 1 : spec.y) },
             mindustry_anchor: spec.mindustry_anchor || null,
             fluidDepth: Number(spec.fluidDepth || 0),
+            inventory: spec.inventory === true,
+            team: Number(spec.team == null ? 1 : spec.team),
             volume: { x: Number(volume.x || 1), z: Number(volume.z || 1), y: Number(volume.y || 1) },
             rotation: Number(spec.rotation || 0),
             source_game: spec.source_game || "UNKNOWN",
@@ -108,6 +110,11 @@ class WorldState {
             y: Number(player.y == null ? 5 : player.y),
             rotation: Number(player.rotation || 0),
             connected: player.connected !== false,
+            health_fraction: Number(player.health_fraction == null ? 1 : player.health_fraction),
+            life_id: player.life_id || null,
+            unit_id: player.unit_id || null,
+            team: Number(player.team == null ? 1 : player.team),
+            creative: player.creative === true,
             updated_at: Date.now()
         };
         this.players.set(normalized.id, normalized);

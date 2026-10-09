@@ -1,1 +1,4 @@
-npm run dev
+@echo off
+cd /d "%~dp0"
+call npm start
+pause
